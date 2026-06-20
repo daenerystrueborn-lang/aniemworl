@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   Star, Users, Heart, Play, BookOpen, Calendar, Tv, ExternalLink,
-  ChevronLeft, Loader2, X, Droplets,
+  ChevronLeft, Loader2, X, Droplets, Library, Check, ChevronDown,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { apiUrl } from "../lib/api";
 
 interface WikiDetail {
@@ -236,6 +237,75 @@ function CharacterModal({ charId, onClose }: { charId: number; onClose: () => vo
   );
 }
 
+const ANIME_STATUSES = ["watching", "plan-to-watch", "completed", "dropped"] as const;
+const READ_STATUSES = ["reading", "plan-to-read", "completed", "dropped"] as const;
+const STATUS_LABELS: Record<string, string> = {
+  watching: "Watching", "plan-to-watch": "Plan to Watch",
+  reading: "Reading", "plan-to-read": "Plan to Read",
+  completed: "Completed", dropped: "Dropped",
+};
+
+function LibraryButton({ mediaId, isRead }: { mediaId: string; isRead: boolean }) {
+  const { token, library, updateLibrary } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const mediaType = isRead ? "manga" : "anime";
+  const existing = library.find((e) => e.id === mediaId && e.type === mediaType);
+  const statuses = isRead ? READ_STATUSES : ANIME_STATUSES;
+
+  if (!token) {
+    return (
+      <a href="/profile" className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-muted-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors">
+        <Library className="w-3.5 h-3.5" /> Sign in to save
+      </a>
+    );
+  }
+
+  async function selectStatus(status: string) {
+    if (!token) return;
+    setSaving(true);
+    setOpen(false);
+    const entry = {
+      id: mediaId, type: mediaType as "anime" | "manga",
+      status: status as "watching" | "reading" | "completed" | "plan-to-watch" | "plan-to-read" | "dropped",
+      addedAt: existing?.addedAt ?? Date.now(), updatedAt: Date.now(),
+    };
+    updateLibrary(entry);
+    await fetch(apiUrl("/api/auth/library"), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: mediaId, type: mediaType, status }),
+    });
+    setSaving(false);
+  }
+
+  return (
+    <div className="relative w-full">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={saving}
+        className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors disabled:opacity-50"
+      >
+        {existing ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Library className="w-3.5 h-3.5" />}
+        {existing ? STATUS_LABELS[existing.status] : "Add to Library"}
+        <ChevronDown className="w-3 h-3 ml-auto" />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-xl z-20 overflow-hidden">
+          {statuses.map((s) => (
+            <button key={s} onClick={() => selectStatus(s)}
+              className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-muted/60 transition-colors ${existing?.status === s ? "text-accent font-semibold" : "text-foreground"}`}>
+              {STATUS_LABELS[s]}
+              {existing?.status === s && <Check className="w-3 h-3" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WikiDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -310,6 +380,7 @@ export default function WikiDetailPage() {
               >
                 Download
               </Link>
+              <LibraryButton mediaId={String(data.id)} isRead={isRead} />
             </div>
           </div>
 

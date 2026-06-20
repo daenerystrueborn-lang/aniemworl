@@ -10,6 +10,7 @@ import ProfilePage from "@/pages/profile";
 import WikiPage from "@/pages/wiki";
 import WikiDetailPage from "@/pages/wiki-detail";
 import NotFound from "@/pages/not-found";
+import { AuthProvider } from "@/lib/auth-context";
 
 const queryClient = new QueryClient();
 
@@ -34,10 +35,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
+        <AuthProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
