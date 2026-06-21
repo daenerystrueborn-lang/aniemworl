@@ -21,6 +21,7 @@ interface WikiDetail {
   episodes: number | null;
   year: number | null;
   studios: string[];
+  relations: { id: number; title: string; format: string; year: number | null; relationType: string }[];
 }
 
 interface Episode {
@@ -335,6 +336,13 @@ export default function WatchPage() {
     enabled: !!id,
   });
 
+  const seasons = useMemo(() => {
+    if (!anime?.relations) return [];
+    return anime.relations
+      .filter((r) => (r.relationType === "SEQUEL" || r.relationType === "PREQUEL") && r.format === "TV")
+      .sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
+  }, [anime?.relations]);
+
   const { data: fetchedEpisodes = [], isLoading: episodesLoading } = useQuery<Episode[]>({
     queryKey: ["episodes", anime?.malId],
     queryFn: () => fetchEpisodes(anime!.malId!),
@@ -481,6 +489,22 @@ export default function WatchPage() {
                     <span className="text-xs text-muted-foreground">{anime.studios[0]}</span>
                   )}
                 </div>
+                {seasons.length > 0 && (
+                  <select
+                    value={id}
+                    onChange={(e) => setLocation(`/watch/${e.target.value}`)}
+                    className="mt-2 text-xs bg-muted border border-border rounded px-2 py-1 text-foreground"
+                  >
+                    <option value={id}>
+                      {anime.format}{anime.year ? ` (${anime.year})` : ""} — current
+                    </option>
+                    {seasons.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title}{s.year ? ` (${s.year})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <Link
                 href={`/wiki/${id}`}
