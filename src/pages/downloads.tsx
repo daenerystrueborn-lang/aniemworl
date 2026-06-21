@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import {
+<<<<<<< HEAD
   Search, Download, Loader2, BookOpen,
   FileText, ChevronDown, ChevronUp, X,
 } from "lucide-react";
@@ -10,11 +11,39 @@ import { apiUrl } from "../lib/api";
 const TABS = ["Manga", "Novels"] as const;
 type TabType = typeof TABS[number];
 
+=======
+  Search, Download, Loader2, Film, BookOpen,
+  FileText, ChevronDown, ChevronUp, X, Play,
+} from "lucide-react";
+import { apiUrl } from "../lib/api";
+
+const TABS = ["Anime", "Manga", "Novels"] as const;
+type TabType = typeof TABS[number];
+
+interface AniListItem { id: number; title: string; cover: string; genres: string[]; score: number | null; format: string; episodes: number | null; chapters: number | null; year: number | null; }
+interface AnimePaheResult { session: string; title: string; poster?: string; type?: string; episodes?: number; }
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
 interface MangaPillResult { id: string; slug: string; title: string; url: string; cover: string; }
 interface MangaPillChapter { number: number; numCode: string; slug: string; title: string; url: string; }
 interface NovelResult { slug: string; title: string; cover: string; url: string; }
 interface NovelChapter { number: number; title: string; url: string; }
 
+<<<<<<< HEAD
+=======
+async function fetchTrending(type: string): Promise<AniListItem[]> {
+  const res = await fetch(apiUrl(`/api/anime/trending?type=${type}&perPage=20`));
+  return res.ok ? (await res.json()).data ?? [] : [];
+}
+async function searchAniList(q: string, type: string): Promise<AniListItem[]> {
+  const res = await fetch(apiUrl(`/api/anime/search?q=${encodeURIComponent(q)}&type=${type}&perPage=20`));
+  return res.ok ? (await res.json()).data ?? [] : [];
+}
+async function searchAnimePahe(q: string): Promise<AnimePaheResult[]> {
+  if (!q.trim()) return [];
+  const res = await fetch(apiUrl(`/api/animepahe/search?q=${encodeURIComponent(q)}`));
+  return res.ok ? (await res.json()).data ?? [] : [];
+}
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
 async function searchMangaPill(q: string): Promise<MangaPillResult[]> {
   const res = await fetch(apiUrl(`/api/mangapill/search?q=${encodeURIComponent(q)}`));
   return res.ok ? (await res.json()).data ?? [] : [];
@@ -212,7 +241,11 @@ export default function DownloadsPage() {
   const rawSearch = useSearch();
   const urlParams = new URLSearchParams(rawSearch);
   const qParam = urlParams.get("q") ?? "";
+<<<<<<< HEAD
   const defaultTab = TABS.includes(urlParams.get("tab") as TabType) ? (urlParams.get("tab") as TabType) : "Manga";
+=======
+  const defaultTab = TABS.includes(urlParams.get("tab") as TabType) ? (urlParams.get("tab") as TabType) : "Anime";
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
 
   const [tab, setTab] = useState<TabType>(defaultTab);
   const [search, setSearch] = useState(qParam);
@@ -232,6 +265,23 @@ export default function DownloadsPage() {
 
   const isSearching = debouncedSearch.trim().length > 0;
 
+<<<<<<< HEAD
+=======
+  const { data: paheResults } = useQuery<AnimePaheResult[]>({
+    queryKey: ["pahe-search", debouncedSearch],
+    queryFn: () => searchAnimePahe(debouncedSearch),
+    staleTime: 5 * 60 * 1000,
+    enabled: tab === "Anime" && isSearching,
+  });
+
+  const { data: animeItems, isLoading: animeLoading } = useQuery<AniListItem[]>({
+    queryKey: ["dl-anime", debouncedSearch],
+    queryFn: () => isSearching ? searchAniList(debouncedSearch, "ANIME") : fetchTrending("ANIME"),
+    staleTime: 5 * 60 * 1000,
+    enabled: tab === "Anime",
+  });
+
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
   const { data: mangaPillResults, isLoading: mangaPillLoading } = useQuery<MangaPillResult[]>({
     queryKey: ["mangapill-search", debouncedSearch],
     queryFn: () => searchMangaPill(debouncedSearch || "naruto"),
@@ -246,6 +296,20 @@ export default function DownloadsPage() {
     enabled: tab === "Novels",
   });
 
+<<<<<<< HEAD
+=======
+  const paheMap = new Map<string, AnimePaheResult>();
+  (paheResults ?? []).forEach((r) => paheMap.set(r.title.toLowerCase(), r));
+  function findPahe(title: string) {
+    const key = title.toLowerCase();
+    if (paheMap.has(key)) return paheMap.get(key);
+    for (const [k, v] of paheMap) {
+      if (k.includes(key.slice(0, 8)) || key.includes(k.slice(0, 8))) return v;
+    }
+    return null;
+  }
+
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-16 pb-20">
@@ -257,7 +321,11 @@ export default function DownloadsPage() {
         <div className="mb-5">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-0.5">Downloads</h1>
           <p className="text-sm text-muted-foreground">
+<<<<<<< HEAD
             Download manga chapters as PDF or novel chapters as TXT / PDF.
+=======
+            Download manga chapters as PDF, novel chapters as TXT or PDF, or watch anime online.
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
           </p>
         </div>
 
@@ -280,7 +348,11 @@ export default function DownloadsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <input
               type="search"
+<<<<<<< HEAD
               placeholder={tab === "Manga" ? "Search manga…" : "Search novels…"}
+=======
+              placeholder={tab === "Anime" ? "Search anime…" : tab === "Manga" ? "Search manga…" : "Search novels…"}
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full bg-muted border border-border rounded pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/60"
@@ -293,6 +365,61 @@ export default function DownloadsPage() {
           </div>
         </div>
 
+<<<<<<< HEAD
+=======
+        {/* ── ANIME TAB ── */}
+        {tab === "Anime" && (
+          <section>
+            <h2 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+              <Film className="w-4 h-4 text-muted-foreground" />
+              {isSearching ? "Anime Results" : "Trending Anime"}
+            </h2>
+            {animeLoading ? (
+              <div className="flex items-center justify-center h-48"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                  {(animeItems ?? []).map((item) => {
+                    const pahe = findPahe(item.title);
+                    const watchUrl = pahe
+                      ? `https://animepahe.ru/anime/${pahe.session}`
+                      : `https://animepahe.ru/?s=${encodeURIComponent(item.title)}`;
+                    return (
+                      <div key={item.id} className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all group">
+                        <div className="aspect-[3/4] overflow-hidden bg-muted relative">
+                          {item.cover
+                            ? <img src={item.cover} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                            : <div className="w-full h-full flex items-center justify-center"><Film className="w-6 h-6 text-muted-foreground/40" /></div>
+                          }
+                          {item.score && (
+                            <div className="absolute top-2 right-2 bg-accent text-accent-foreground text-[10px] font-bold px-1.5 py-0.5 rounded">
+                              {(item.score / 10).toFixed(1)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2.5 sm:p-3">
+                          <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-2 mb-1 leading-snug">{item.title}</p>
+                          <div className="flex flex-wrap gap-1 mb-2.5">
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{item.format || "TV"}</span>
+                            {item.year && <span className="text-[10px] text-muted-foreground">{item.year}</span>}
+                          </div>
+                          <a href={watchUrl} target="_blank" rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-xs font-semibold bg-accent text-accent-foreground hover:bg-accent/90 transition-colors">
+                            <Play className="w-3 h-3 fill-accent-foreground" /> Watch Now
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Mid ad */}
+                <div className="mt-8"><AdSlot size="banner" /></div>
+              </>
+            )}
+          </section>
+        )}
+
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
         {/* ── MANGA TAB ── */}
         {tab === "Manga" && (
           <section>

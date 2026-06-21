@@ -195,6 +195,7 @@ export default function HomePage() {
                 <ScoreBadge score={hero.score} />
               </div>
               <div className="flex items-center gap-2 sm:gap-3">
+<<<<<<< HEAD
                 {!isRead ? (
                   <Link href={`/watch/${hero.id}`} className="inline-flex items-center gap-1.5 sm:gap-2 bg-foreground text-background px-4 sm:px-5 py-2 sm:py-2.5 rounded text-xs sm:text-sm font-semibold hover:bg-foreground/90 transition-colors">
                     <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-background" /> Watch Now
@@ -204,6 +205,14 @@ export default function HomePage() {
                     <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Read Now
                   </button>
                 )}
+=======
+                <button className="inline-flex items-center gap-1.5 sm:gap-2 bg-foreground text-background px-4 sm:px-5 py-2 sm:py-2.5 rounded text-xs sm:text-sm font-semibold hover:bg-foreground/90 transition-colors">
+                  {isRead
+                    ? <><BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Read Now</>
+                    : <><Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-background" /> Watch Now</>
+                  }
+                </button>
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
                 <Link
                   href={`/wiki/${hero.id}`}
                   className="inline-flex items-center gap-1.5 sm:gap-2 bg-muted border border-border text-foreground px-4 sm:px-5 py-2 sm:py-2.5 rounded text-xs sm:text-sm font-semibold hover:bg-muted/70 transition-colors"

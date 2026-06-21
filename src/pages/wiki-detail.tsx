@@ -371,6 +371,7 @@ export default function WikiDetailPage() {
               {data.cover && <img src={data.cover} alt={data.title.display} className="w-full h-full object-cover" />}
             </div>
             <div className="mt-3 flex flex-col gap-2">
+<<<<<<< HEAD
               {!isRead ? (
                 <Link href={`/watch/${data.id}`} className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-accent/90 transition-colors">
                   <Play className="w-3.5 h-3.5 fill-accent-foreground" /> Watch Now
@@ -380,6 +381,11 @@ export default function WikiDetailPage() {
                   <BookOpen className="w-3.5 h-3.5" /> Read Now
                 </button>
               )}
+=======
+              <button className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-accent/90 transition-colors">
+                {isRead ? <><BookOpen className="w-3.5 h-3.5" /> Read Now</> : <><Play className="w-3.5 h-3.5 fill-accent-foreground" /> Watch Now</>}
+              </button>
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
               <Link
                 href={`/downloads?q=${encodeURIComponent(data.title.display)}`}
                 className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors"

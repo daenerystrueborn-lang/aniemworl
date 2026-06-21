@@ -6,8 +6,11 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
+<<<<<<< HEAD
     { "source": "/api/:path*", "destination": "https://animeastral.qzz.io/api/:path*" },
     { "source": "/uploads/:path*", "destination": "https://animeastral.qzz.io/uploads/:path*" },
+=======
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -15,6 +18,10 @@
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
+<<<<<<< HEAD
+=======
+        { "key": "X-Frame-Options", "value": "DENY" },
+>>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     },
