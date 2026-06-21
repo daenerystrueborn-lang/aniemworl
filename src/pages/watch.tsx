@@ -335,12 +335,27 @@ export default function WatchPage() {
     enabled: !!id,
   });
 
-  const { data: episodes = [], isLoading: episodesLoading } = useQuery<Episode[]>({
+  const { data: fetchedEpisodes = [], isLoading: episodesLoading } = useQuery<Episode[]>({
     queryKey: ["episodes", anime?.malId],
     queryFn: () => fetchEpisodes(anime!.malId!),
     staleTime: 30 * 60 * 1000,
     enabled: !!anime?.malId,
   });
+
+  const episodes = useMemo(() => {
+    if (fetchedEpisodes.length > 0) return fetchedEpisodes;
+    if (!anime?.malId && anime?.episodes) {
+      return Array.from({ length: anime.episodes }, (_, i) => ({
+        number: i + 1,
+        title: `Episode ${i + 1}`,
+        titleJapanese: null,
+        aired: null,
+        filler: false,
+        recap: false,
+      }));
+    }
+    return fetchedEpisodes;
+  }, [fetchedEpisodes, anime?.malId, anime?.episodes]);
 
   const currentIndex = useMemo(
     () => episodes.findIndex((e) => e.number === currentEp),
