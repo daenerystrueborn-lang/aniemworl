@@ -89,7 +89,6 @@ function MangaChapterPanel({ seriesUrl, title }: { seriesUrl: string; title: str
         </span>
         {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
-
       {open && (
         <div className="mt-2 border border-border rounded-lg overflow-hidden bg-card max-h-64 overflow-y-auto">
           {isLoading ? (
@@ -163,7 +162,6 @@ function NovelChapterPanel({ slug, title }: { slug: string; title: string }) {
         </span>
         {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
-
       {open && (
         <div className="mt-2 border border-border rounded-lg overflow-hidden bg-card">
           <div className="flex items-center gap-1 p-2 border-b border-border">
@@ -212,7 +210,9 @@ export default function DownloadsPage() {
   const rawSearch = useSearch();
   const urlParams = new URLSearchParams(rawSearch);
   const qParam = urlParams.get("q") ?? "";
-  const defaultTab = TABS.includes(urlParams.get("tab") as TabType) ? (urlParams.get("tab") as TabType) : "Manga";
+  const defaultTab = TABS.includes(urlParams.get("tab") as TabType)
+    ? (urlParams.get("tab") as TabType)
+    : "Manga";
 
   const [tab, setTab] = useState<TabType>(defaultTab);
   const [search, setSearch] = useState(qParam);
@@ -249,7 +249,6 @@ export default function DownloadsPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-16 pb-20">
-        {/* Top ad */}
         <div className="mb-4 mt-2">
           <AdSlot size="banner" />
         </div>
@@ -353,13 +352,7 @@ export default function DownloadsPage() {
                         <img src={item.cover} alt={item.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           loading="lazy"
-                          onError={(e) => {
-                            const el = e.currentTarget as HTMLImageElement;
-                            el.style.display = "none";
-                          }} />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0">
-                          <FileText className="w-6 h-6 text-muted-foreground/40" />
-                        </div>
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                       </div>
                       <div className="p-2.5 sm:p-3">
                         <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-2 mb-2 leading-snug">{item.title}</p>
@@ -374,7 +367,6 @@ export default function DownloadsPage() {
           </section>
         )}
 
-        {/* Bottom ad */}
         <div className="mt-12">
           <AdSlot size="square" />
         </div>

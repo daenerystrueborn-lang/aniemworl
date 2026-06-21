@@ -1,385 +1,515 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, Link } from "wouter";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useParams, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import Hls from "hls.js";
 import {
-  ChevronLeft, Play, List, Star, ChevronDown, ChevronUp,
-  Loader2, AlertCircle, Search, ChevronRight,
+  ChevronLeft, ChevronRight, Loader2, AlertCircle,
+  Search, List, Grid3X3, Image as ImageIcon, Play,
+  SkipBack, SkipForward, CheckSquare, Square,
 } from "lucide-react";
-import { apiUrl } from "../lib/api";
+import { apiUrl } from "@/lib/api";
 
-/* ── Types ─────────────────────────────────────────── */
-interface AnimeDetail {
+interface WikiDetail {
   id: number;
+  malId: number | null;
   title: { english: string | null; romaji: string | null; native: string | null; display: string };
-  description: string; genres: string[]; score: number | null;
-  format: string; episodes: number | null; year: number | null; status: string;
-}
-interface PaheResult { session: string; title: string; poster?: string; episodes?: number; }
-interface PaheEpisode {
-  id: number; episode: number; session: string;
-  snapshot?: string; duration?: string; filler?: boolean;
-}
-interface PaheEpisodesResponse {
-  data: PaheEpisode[]; current_page: number; last_page: number; total: number;
-}
-interface StreamSource { url: string; isM3U8: boolean; resolution: string; isDub: boolean; }
-interface StreamSourcesResponse {
-  success: boolean;
-  data: { animeSession: string; episodeSession: string; sources: StreamSource[] } | null;
-  error?: string;
+  cover: string;
+  banner: string;
+  description: string;
+  genres: string[];
+  format: string;
+  status: string;
+  episodes: number | null;
+  year: number | null;
+  studios: string[];
 }
 
-/* ── Helpers ────────────────────────────────────────── */
-
-const HISTORY_KEY = "aw_history";
-function getHistory(): Record<string, { epNum: number; session: string }> {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "{}"); } catch { return {}; }
-}
-function saveHistory(id: string, epNum: number, session: string) {
-  const h = getHistory(); h[id] = { epNum, session };
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+interface Episode {
+  number: number;
+  title: string;
+  filler: boolean;
+  recap: boolean;
 }
 
-/* ── Main Page ──────────────────────────────────────── */
+async function fetchDetails(id: string): Promise<WikiDetail> {
+  const res = await fetch(apiUrl(`/api/anime/details/${id}`));
+  if (!res.ok) throw new Error("Not found");
+  return res.json();
+}
+
+async function fetchEpisodes(malId: number): Promise<Episode[]> {
+  const res = await fetch(apiUrl(`/api/anime/episodes/${malId}`));
+  if (!res.ok) throw new Error("Failed");
+  const data = await res.json();
+  return data.episodes ?? [];
+}
+
+function getEpisodeId(ep: Episode) {
+  return `ep-${ep.number}`;
+}
+
+type DisplayMode = "list" | "grid" | "image";
+
+function EpisodeList({
+  episodes,
+  currentEp,
+  animeId,
+  onSelect,
+}: {
+  episodes: Episode[];
+  currentEp: number;
+  animeId: string;
+  onSelect: (ep: number) => void;
+}) {
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [interval, setInterval] = useState<[number, number]>([0, 99]);
+  const [watched, setWatched] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(`watched-${animeId}`);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const selectedRef = useRef<HTMLButtonElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const intervalOptions = useMemo(() => {
+    const opts: { start: number; end: number }[] = [];
+    for (let i = 0; i < episodes.length; i += 100) {
+      opts.push({ start: i, end: Math.min(i + 99, episodes.length - 1) });
+    }
+    return opts;
+  }, [episodes]);
+
+  // Jump interval when currentEp changes
+  useEffect(() => {
+    const idx = episodes.findIndex((e) => e.number === currentEp);
+    if (idx === -1) return;
+    for (const { start, end } of intervalOptions) {
+      if (idx >= start && idx <= end) {
+        setInterval([start, end]);
+        break;
+      }
+    }
+  }, [currentEp, episodes, intervalOptions]);
+
+  // Mark current as watched
+  useEffect(() => {
+    setWatched((prev) => {
+      if (prev.has(currentEp)) return prev;
+      const next = new Set(prev);
+      next.add(currentEp);
+      localStorage.setItem(`watched-${animeId}`, JSON.stringify([...next]));
+      return next;
+    });
+  }, [currentEp, animeId]);
+
+  // Scroll selected into view
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (selectedRef.current && containerRef.current) {
+        const el = selectedRef.current;
+        const container = containerRef.current;
+        const top = el.getBoundingClientRect().top - container.getBoundingClientRect().top;
+        container.scrollTo({ top: container.scrollTop + top - container.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [currentEp, displayMode]);
+
+  const filtered = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return episodes.filter(
+      (ep) => ep.title.toLowerCase().includes(q) || ep.number.toString().includes(q)
+    );
+  }, [episodes, searchTerm]);
+
+  const displayed = searchTerm
+    ? filtered
+    : episodes.slice(interval[0], interval[1] + 1);
+
+  return (
+    <div className="flex flex-col h-full bg-card rounded-lg overflow-hidden border border-border">
+      {/* Controls */}
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/60 border-b border-border shrink-0">
+        <select
+          className="text-xs bg-muted text-foreground border border-border rounded px-1.5 py-1 flex-1 min-w-0"
+          value={`${interval[0]}-${interval[1]}`}
+          onChange={(e) => {
+            const [s, en] = e.target.value.split("-").map(Number);
+            setInterval([s, en]);
+          }}
+        >
+          {intervalOptions.map(({ start, end }) => (
+            <option key={start} value={`${start}-${end}`}>
+              EP {episodes[start]?.number ?? start + 1}–{episodes[end]?.number ?? end + 1}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex items-center gap-1 bg-muted border border-border rounded px-2 py-1 flex-shrink-0">
+          <Search className="w-3 h-3 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Filter…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="text-xs bg-transparent text-foreground outline-none w-16"
+          />
+        </div>
+
+        <button
+          onClick={() => setDisplayMode((m) => m === "list" ? "grid" : m === "grid" ? "image" : "list")}
+          className="shrink-0 p-1.5 rounded border border-border bg-muted text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {displayMode === "list" ? <List className="w-3.5 h-3.5" /> : displayMode === "grid" ? <Grid3X3 className="w-3.5 h-3.5" /> : <ImageIcon className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      {/* Episodes */}
+      <div
+        ref={containerRef}
+        className={`overflow-y-auto flex-1 p-1.5 ${displayMode === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-1" : "flex flex-col gap-0.5"}`}
+      >
+        {displayed.map((ep) => {
+          const isSelected = ep.number === currentEp;
+          const isWatched = watched.has(ep.number);
+
+          const baseClass = "rounded text-left transition-colors cursor-pointer flex items-center";
+          const colorClass = isSelected
+            ? "bg-accent text-accent-foreground"
+            : isWatched
+            ? "bg-primary/80 text-primary-foreground hover:brightness-110"
+            : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground";
+
+          if (displayMode === "grid") {
+            return (
+              <button
+                key={ep.number}
+                ref={isSelected ? selectedRef : undefined}
+                onClick={() => onSelect(ep.number)}
+                className={`${baseClass} ${colorClass} justify-center p-1 text-xs font-medium`}
+              >
+                {isSelected ? <Play className="w-3 h-3" /> : ep.number}
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={ep.number}
+              ref={isSelected ? selectedRef : undefined}
+              onClick={() => onSelect(ep.number)}
+              className={`${baseClass} ${colorClass} gap-2 px-2 py-1.5`}
+            >
+              <span className="text-xs font-bold w-7 shrink-0 text-right">
+                {isSelected ? <Play className="w-3 h-3" /> : ep.number}
+              </span>
+              <span className="text-xs truncate flex-1">{ep.title}</span>
+              {ep.filler && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">F</span>}
+            </button>
+          );
+        })}
+        {displayed.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-6">No episodes found</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IFramePlayer({
+  anilistId,
+  episodeNumber,
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
+  autoNext,
+  onToggleAutoNext,
+  onEnded,
+}: {
+  anilistId: string;
+  episodeNumber: number;
+  onPrev: () => void;
+  onNext: () => void;
+  hasPrev: boolean;
+  hasNext: boolean;
+  autoNext: boolean;
+  onToggleAutoNext: () => void;
+  onEnded: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const sources = [
+    `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`,
+    `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/dub`,
+    `https://vidwish.live/stream/ani/${anilistId}/${episodeNumber}/sub`,
+  ];
+  const [sourceIdx, setSourceIdx] = useState(0);
+  const iframeSrc = sources[sourceIdx];
+
+  useEffect(() => { setLoading(true); setSourceIdx(0); }, [anilistId, episodeNumber]);
+
+  return (
+    <div className="space-y-2">
+      <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-border">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        <iframe
+          key={`${anilistId}-${episodeNumber}-${sourceIdx}`}
+          src={iframeSrc}
+          className="w-full h-full"
+          allowFullScreen
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          onLoad={() => setLoading(false)}
+        />
+      </div>
+      {/* Server switcher */}
+      <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground px-1">
+        <span className="font-medium text-foreground">Server:</span>
+        {["Sub", "Dub", "Vidwish"].map((name, i) => (
+          <button
+            key={i}
+            onClick={() => { setSourceIdx(i); setLoading(true); }}
+            className={`px-2 py-0.5 rounded border transition-colors ${sourceIdx === i ? "border-accent text-accent bg-accent/10" : "border-border hover:border-accent/50"}`}
+          >
+            {name}
+          </button>
+        ))}
+        <a
+          href={iframeSrc}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto px-2 py-0.5 rounded border border-border hover:border-accent/50 transition-colors"
+        >
+          Open ↗
+        </a>
+      </div>
+
+      {/* Controls bar */}
+      <div className="flex items-center gap-2 bg-muted/60 border border-border rounded-lg px-3 py-1.5">
+        <button
+          onClick={onPrev}
+          disabled={!hasPrev}
+          className="flex items-center gap-1 text-xs text-foreground bg-muted border border-border rounded px-2 py-1 hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <SkipBack className="w-3.5 h-3.5" /> Prev
+        </button>
+        <button
+          onClick={onNext}
+          disabled={!hasNext}
+          className="flex items-center gap-1 text-xs text-foreground bg-muted border border-border rounded px-2 py-1 hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Next <SkipForward className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={onToggleAutoNext}
+          className="flex items-center gap-1 text-xs text-foreground bg-muted border border-border rounded px-2 py-1 hover:bg-muted/70 transition-colors ml-auto"
+        >
+          {autoNext ? <CheckSquare className="w-3.5 h-3.5 text-accent" /> : <Square className="w-3.5 h-3.5" />}
+          Auto Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function WatchPage() {
   const params = useParams<{ id: string }>();
-  const id = params.id ?? "";
+  const [location, setLocation] = useLocation();
+  const id = params.id;
 
-  const [paheSession, setPaheSession] = useState<string | null>(null);
-  const [paheResults, setPaheResults] = useState<PaheResult[]>([]);
-  const [showPicker, setShowPicker] = useState(false);
-  const [selectedEp, setSelectedEp] = useState<PaheEpisode | null>(null);
-  const [epPage, setEpPage] = useState(1);
-  const [showEpList, setShowEpList] = useState(true);
-  const [searchingPahe, setSearchingPahe] = useState(false);
+  const searchParams = new URLSearchParams(location.includes("?") ? location.split("?")[1] : "");
+  const epParam = searchParams.get("ep");
+  const [currentEp, setCurrentEp] = useState(epParam ? parseInt(epParam, 10) : 1);
+  const [autoNext, setAutoNext] = useState(true);
 
-  /* Anime details */
-  const { data: detail, isLoading: detailLoading } = useQuery<AnimeDetail>({
-    queryKey: ["watch-detail", id],
-    queryFn: async () => {
-      const res = await fetch(apiUrl(`/api/anime/details/${id}`));
-      if (!res.ok) throw new Error("Failed to load");
-      return res.json();
-    },
-    enabled: !!id,
+  const { data: anime, isLoading: animeLoading, isError: animeError } = useQuery<WikiDetail>({
+    queryKey: ["wiki-detail", id],
+    queryFn: () => fetchDetails(id),
     staleTime: 10 * 60 * 1000,
+    enabled: !!id,
   });
 
-  /* Search AnimePahe when we have the title */
-  useEffect(() => {
-    if (!detail?.title?.display || paheSession) return;
-    setSearchingPahe(true);
-    fetch(apiUrl(`/api/animepahe/search?q=${encodeURIComponent(detail.title.display)}`))
-      .then((r) => r.json())
-      .then((json) => {
-        const results: PaheResult[] = json.data ?? [];
-        setPaheResults(results);
-        if (results.length === 1) {
-          setPaheSession(results[0].session);
-        } else if (results.length > 1) {
-          /* Auto-pick best match */
-          const best = results.find(
-            (r) => r.title.toLowerCase() === detail.title.display.toLowerCase(),
-          ) ?? results[0];
-          setPaheSession(best.session);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setSearchingPahe(false));
-  }, [detail?.title?.display, paheSession]);
+  const { data: episodes = [], isLoading: episodesLoading } = useQuery<Episode[]>({
+    queryKey: ["episodes", anime?.malId],
+    queryFn: () => fetchEpisodes(anime!.malId!),
+    staleTime: 30 * 60 * 1000,
+    enabled: !!anime?.malId,
+  });
 
-  /* Episode list */
-  const { data: epData, isLoading: epLoading } = useQuery<PaheEpisodesResponse>({
-    queryKey: ["pahe-episodes", paheSession, epPage],
-    queryFn: async () => {
-      const res = await fetch(
-        apiUrl(`/api/animepahe/episodes/${paheSession}?page=${epPage}`),
-      );
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
+  const currentIndex = useMemo(
+    () => episodes.findIndex((e) => e.number === currentEp),
+    [episodes, currentEp]
+  );
+
+  const currentEpisode = episodes[currentIndex] ?? null;
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < episodes.length - 1 && currentIndex !== -1;
+
+  const navigateToEp = useCallback(
+    (ep: number) => {
+      setCurrentEp(ep);
+      const base = location.includes("?") ? location.split("?")[0] : location;
+      setLocation(`${base}?ep=${ep}`, { replace: true });
     },
-    enabled: !!paheSession,
-    staleTime: 5 * 60 * 1000,
-  });
+    [location, setLocation]
+  );
 
-  const episodes = epData?.data ?? [];
-  const lastPage = epData?.last_page ?? 1;
+  const handlePrev = useCallback(() => {
+    if (hasPrev) navigateToEp(episodes[currentIndex - 1].number);
+  }, [hasPrev, currentIndex, episodes, navigateToEp]);
 
-  /* Restore last watched */
+  const handleNext = useCallback(() => {
+    if (hasNext) navigateToEp(episodes[currentIndex + 1].number);
+  }, [hasNext, currentIndex, episodes, navigateToEp]);
+
+  // Save watch history
   useEffect(() => {
-    if (!episodes.length || selectedEp) return;
-    const hist = getHistory()[id];
-    if (hist) {
-      const found = episodes.find((e) => e.episode === hist.epNum);
-      if (found) { setSelectedEp(found); return; }
-    }
-    setSelectedEp(episodes[0]);
-  }, [episodes, id, selectedEp]);
+    if (!anime || !currentEp) return;
+    try {
+      const history = JSON.parse(localStorage.getItem("watch-history") || "{}");
+      history[id] = {
+        episodeNumber: currentEp,
+        animeTitle: anime.title.display,
+        animeImage: anime.cover,
+        cover: anime.banner || anime.cover,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem("watch-history", JSON.stringify(history));
+    } catch { /* ignore */ }
+  }, [id, currentEp, anime]);
 
-  function pickEpisode(ep: PaheEpisode) {
-    setSelectedEp(ep);
-    if (paheSession) saveHistory(id, ep.episode, paheSession);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  /* Stream sources for the selected episode */
-  const { data: sourcesData, isLoading: sourcesLoading } = useQuery<StreamSourcesResponse>({
-    queryKey: ["pahe-sources", paheSession, selectedEp?.session],
-    queryFn: async () => {
-      const res = await fetch(
-        apiUrl(`/api/animepahe/sources/${paheSession}/${selectedEp!.session}`),
-      );
-      return res.json();
-    },
-    enabled: !!paheSession && !!selectedEp,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  });
-
-  /* Pick best quality source (prefer sub, highest resolution) */
-  const activeSource = (() => {
-    const sources = sourcesData?.data?.sources ?? [];
-    if (!sources.length) return null;
-    const subSources = sources.filter((s) => !s.isDub);
-    const pool = subSources.length ? subSources : sources;
-    return pool.slice().sort((a, b) => Number(b.resolution) - Number(a.resolution))[0] ?? null;
-  })();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !activeSource?.url) return;
-    let hls: Hls | null = null;
-    if (Hls.isSupported()) {
-      hls = new Hls();
-      hls.loadSource(activeSource.url);
-      hls.attachMedia(video);
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = activeSource.url;
-    }
-    return () => { hls?.destroy(); };
-  }, [activeSource?.url]);
-
-  if (detailLoading) {
+  if (animeLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
+  if (animeError || !anime) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <AlertCircle className="w-10 h-10 text-destructive" />
+        <p className="text-muted-foreground">Could not load anime.</p>
+        <Link href="/" className="text-accent text-sm hover:underline">← Home</Link>
+      </div>
+    );
+  }
+
+  const animeTitle = anime.title.english || anime.title.romaji || "Unknown Anime";
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-16 pb-20">
-        {/* Back */}
-        <Link href={`/wiki/${id}`} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 mt-2 transition-colors">
-          <ChevronLeft className="w-3.5 h-3.5" /> Back to Wiki
-        </Link>
+    <div className="min-h-screen bg-background pt-16 pb-10">
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-4">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
+          <Link href="/" className="hover:text-foreground transition-colors">Home</Link>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <Link href={`/wiki/${id}`} className="hover:text-foreground transition-colors truncate max-w-xs">
+            {animeTitle}
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="text-foreground">
+            {episodesLoading ? "Loading…" : currentEpisode ? `Episode ${currentEp}` : `Episode ${currentEp}`}
+          </span>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
-          {/* ── Left: player + info ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+          {/* Left: Player + info */}
           <div className="space-y-4">
-            {/* Player */}
-            <div className="rounded-xl overflow-hidden bg-black border border-border" style={{ aspectRatio: "16/9" }}>
-              {activeSource ? (
-                <video
-                  key={activeSource.url}
-                  ref={videoRef}
-                  className="w-full h-full"
-                  controls
-                  autoPlay
-                  playsInline
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                  {searchingPahe || epLoading || sourcesLoading ? (
-                    <>
-                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">Finding stream…</p>
-                    </>
-                  ) : !paheSession ? (
-                    <>
-                      <AlertCircle className="w-8 h-8 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground text-center px-4">
-                        {detail?.title?.display
-                          ? `No stream found for "${detail.title.display}"`
-                          : "Stream not found"}
-                      </p>
-                      {paheResults.length === 0 && detail?.title?.display && (
-                        <a
-                          href={`https://animepahe.si/?s=${encodeURIComponent(detail.title.display)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-accent hover:underline flex items-center gap-1"
-                        >
-                          <Search className="w-3 h-3" /> Search on AnimePahe
-                        </a>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-10 h-10 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">Select an episode to watch</p>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+            <IFramePlayer
+              anilistId={id}
+              episodeNumber={currentEp}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              autoNext={autoNext}
+              onToggleAutoNext={() => setAutoNext((v) => !v)}
+              onEnded={handleNext}
+            />
 
-            {/* AnimePahe picker (multiple results) */}
-            {paheResults.length > 1 && (
-              <div className="rounded-lg border border-border bg-card p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-foreground">Select correct series on AnimePahe:</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {paheResults.map((r) => (
-                    <button
-                      key={r.session}
-                      onClick={() => { setPaheSession(r.session); setSelectedEp(null); setEpPage(1); }}
-                      className={`text-xs px-3 py-1.5 rounded border transition-all ${
-                        paheSession === r.session
-                          ? "bg-accent text-accent-foreground border-accent"
-                          : "bg-muted text-muted-foreground border-border hover:text-foreground"
-                      }`}
-                    >
-                      {r.title}{r.episodes ? ` (${r.episodes} eps)` : ""}
-                    </button>
-                  ))}
+            {/* Anime info strip */}
+            <div className="flex items-start gap-4 bg-card border border-border rounded-xl p-4">
+              {anime.cover && (
+                <img
+                  src={anime.cover}
+                  alt={animeTitle}
+                  className="w-14 aspect-[2/3] rounded-lg object-cover border border-border shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-base font-bold text-foreground leading-tight">{animeTitle}</h1>
+                {anime.title.romaji && anime.title.romaji !== anime.title.display && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{anime.title.romaji}</p>
+                )}
+                {currentEpisode && (
+                  <p className="text-sm text-accent mt-1 font-medium">
+                    Episode {currentEp}: {currentEpisode.title}
+                    {currentEpisode.filler && (
+                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                        Filler
+                      </span>
+                    )}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2">
+                  {anime.format && <span className="text-xs text-muted-foreground">{anime.format}</span>}
+                  {anime.year && <span className="text-xs text-muted-foreground">{anime.year}</span>}
+                  {anime.studios.length > 0 && (
+                    <span className="text-xs text-muted-foreground">{anime.studios[0]}</span>
+                  )}
                 </div>
               </div>
-            )}
+              <Link
+                href={`/wiki/${id}`}
+                className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Details
+              </Link>
+            </div>
 
-            {/* Info */}
-            {detail && (
-              <div className="rounded-xl border border-border bg-card p-4">
-                <div className="flex gap-4">
-                  {detail.cover && (
-                    <img src={detail.cover} alt={detail.title.display} className="w-16 rounded-lg shrink-0 object-cover" style={{ aspectRatio: "2/3" }} />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <h1 className="text-base sm:text-lg font-bold text-foreground leading-tight mb-1">{detail.title.display}</h1>
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      {detail.score && (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-accent">
-                          <Star className="w-3 h-3 fill-accent" />
-                          {(detail.score / 10).toFixed(1)}
-                        </span>
-                      )}
-                      {detail.format && <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">{detail.format}</span>}
-                      {detail.status && <span className="text-xs text-muted-foreground">{detail.status}</span>}
-                      {detail.year && <span className="text-xs text-muted-foreground">{detail.year}</span>}
-                    </div>
-                    {detail.description && (
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{detail.description}</p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {detail.genres.slice(0, 4).map((g) => (
-                        <span key={g} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{g}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            {/* Description */}
+            {anime.description && (
+              <div className="bg-card border border-border rounded-xl p-4">
+                <h2 className="text-sm font-bold text-foreground mb-2">Synopsis</h2>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">
+                  {anime.description}
+                </p>
               </div>
             )}
           </div>
 
-          {/* ── Right: episode list ── */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">
-            {/* Header */}
-            <button
-              onClick={() => setShowEpList((v) => !v)}
-              className="flex items-center justify-between px-4 py-3 border-b border-border hover:bg-muted/40 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <List className="w-4 h-4 text-accent" />
-                <span className="text-sm font-semibold text-foreground">
-                  Episodes
-                  {epData?.total ? ` (${epData.total})` : ""}
-                </span>
-              </div>
-              {showEpList
-                ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-            </button>
-
-            {showEpList && (
-              <>
-                {/* Episode scroll list */}
-                <div className="flex-1 overflow-y-auto" style={{ maxHeight: "420px" }}>
-                  {epLoading ? (
-                    <div className="flex items-center justify-center h-24">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : !paheSession ? (
-                    <div className="flex items-center justify-center h-24 text-xs text-muted-foreground px-4 text-center">
-                      {searchingPahe ? "Searching AnimePahe…" : "Stream source not found"}
-                    </div>
-                  ) : episodes.length === 0 ? (
-                    <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
-                      No episodes found
-                    </div>
-                  ) : (
-                    <div className="p-1.5 space-y-0.5">
-                      {episodes.map((ep) => {
-                        const active = selectedEp?.episode === ep.episode;
-                        return (
-                          <button
-                            key={ep.id}
-                            onClick={() => pickEpisode(ep)}
-                            className={`w-full text-left rounded-lg px-3 py-2.5 flex items-center gap-3 transition-all ${
-                              active
-                                ? "bg-accent/15 border border-accent/30"
-                                : "hover:bg-muted/60 border border-transparent"
-                            }`}
-                          >
-                            {ep.snapshot ? (
-                              <img src={ep.snapshot} alt="" className="w-14 h-9 object-cover rounded shrink-0" loading="lazy" />
-                            ) : (
-                              <div className="w-14 h-9 bg-muted rounded shrink-0 flex items-center justify-center">
-                                <Play className="w-3 h-3 text-muted-foreground" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-medium truncate ${active ? "text-accent" : "text-foreground"}`}>
-                                Episode {ep.episode}
-                                {ep.filler && <span className="ml-1 text-[10px] text-muted-foreground">(Filler)</span>}
-                              </p>
-                              {ep.duration && (
-                                <p className="text-[10px] text-muted-foreground mt-0.5">{ep.duration}</p>
-                              )}
-                            </div>
-                            {active && <Play className="w-3 h-3 text-accent fill-accent shrink-0" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+          {/* Right: Episode list */}
+          <div className="h-[500px] lg:h-auto lg:max-h-[calc(100vh-8rem)] lg:sticky lg:top-20">
+            {episodesLoading ? (
+              <div className="h-full bg-card border border-border rounded-lg flex items-center justify-center">
+                <div className="text-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">Loading episodes…</p>
                 </div>
-
-                {/* Pagination */}
-                {lastPage > 1 && (
-                  <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/20">
-                    <button
-                      onClick={() => { setEpPage((p) => Math.max(1, p - 1)); setSelectedEp(null); }}
-                      disabled={epPage === 1}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" /> Prev
-                    </button>
-                    <span className="text-xs text-muted-foreground">
-                      Page {epPage} / {lastPage}
-                    </span>
-                    <button
-                      onClick={() => { setEpPage((p) => Math.min(lastPage, p + 1)); setSelectedEp(null); }}
-                      disabled={epPage === lastPage}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
-                    >
-                      Next <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </>
+              </div>
+            ) : episodes.length === 0 ? (
+              <div className="h-full bg-card border border-border rounded-lg flex items-center justify-center">
+                <div className="text-center px-4">
+                  <AlertCircle className="w-7 h-7 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No episode list available.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Use the player controls to navigate.</p>
+                </div>
+              </div>
+            ) : (
+              <EpisodeList
+                episodes={episodes}
+                currentEp={currentEp}
+                animeId={id}
+                onSelect={navigateToEp}
+              />
             )}
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   Star, Users, Heart, Play, BookOpen, Calendar, Tv, ExternalLink,
-  ChevronLeft, Loader2, X, Droplets, Library, Check, ChevronDown,
+  ChevronLeft, Loader2, X, Droplets, Library, Check, ChevronDown, Download,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiUrl } from "../lib/api";
@@ -371,30 +371,33 @@ export default function WikiDetailPage() {
               {data.cover && <img src={data.cover} alt={data.title.display} className="w-full h-full object-cover" />}
             </div>
             <div className="mt-3 flex flex-col gap-2">
-              {!isRead ? (
-                <Link href={`/watch/${data.id}`} className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-accent/90 transition-colors">
-                  <Play className="w-3.5 h-3.5 fill-accent-foreground" /> Watch Now
-                </Link>
-              ) : (
-                <button className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-accent/90 transition-colors">
-                  <BookOpen className="w-3.5 h-3.5" /> Read Now
-                </button>
-              )}
               <Link
-                href={`/downloads?q=${encodeURIComponent(data.title.display)}`}
-                className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors"
+                href={isRead ? `/wiki/${data.id}` : `/watch/${data.id}`}
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-accent/90 transition-colors"
               >
-                Download
+                {isRead ? <><BookOpen className="w-3.5 h-3.5" /> Read Now</> : <><Play className="w-3.5 h-3.5 fill-accent-foreground" /> Watch Now</>}
               </Link>
+              {isRead && (
+                <Link
+                  href={`/downloads?q=${encodeURIComponent(data.title.display)}`}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download
+                </Link>
+              )}
               <LibraryButton mediaId={String(data.id)} isRead={isRead} />
             </div>
           </div>
 
           {/* Info */}
           <div className="flex-1 min-w-0 pt-20 sm:pt-24">
+            {data.title.native && <p className="text-xs text-muted-foreground mb-1">{data.title.native}</p>}
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight mb-1">
               {data.title.display}
             </h1>
+            {data.title.romaji && data.title.romaji !== data.title.display && (
+              <p className="text-sm text-muted-foreground mb-3">{data.title.romaji}</p>
+            )}
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {data.score && (

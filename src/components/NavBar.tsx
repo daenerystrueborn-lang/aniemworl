@@ -5,6 +5,7 @@ import { apiUrl } from "../lib/api";
 
 const navLinks = [
   { label: "Home", href: "/" },
+  { label: "Anime", href: "/anime" },
   { label: "Rankings", href: "/rankings" },
   { label: "Downloads", href: "/downloads" },
   { label: "Wiki", href: "/wiki" },
