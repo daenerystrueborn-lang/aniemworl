@@ -11,8 +11,7 @@ import { apiUrl } from "../lib/api";
 /* ── Types ─────────────────────────────────────────── */
 interface AnimeDetail {
   id: number;
-  title: string;
-  cover: string; banner: string;
+  title: { english: string | null; romaji: string | null; native: string | null; display: string };
   description: string; genres: string[]; score: number | null;
   format: string; episodes: number | null; year: number | null; status: string;
 }
@@ -69,9 +68,9 @@ export default function WatchPage() {
 
   /* Search AnimePahe when we have the title */
   useEffect(() => {
-    if (!detail?.title || paheSession) return;
+    if (!detail?.title?.display || paheSession) return;
     setSearchingPahe(true);
-    fetch(apiUrl(`/api/animepahe/search?q=${encodeURIComponent(detail.title)}`))
+    fetch(apiUrl(`/api/animepahe/search?q=${encodeURIComponent(detail.title.display)}`))
       .then((r) => r.json())
       .then((json) => {
         const results: PaheResult[] = json.data ?? [];
@@ -81,14 +80,14 @@ export default function WatchPage() {
         } else if (results.length > 1) {
           /* Auto-pick best match */
           const best = results.find(
-            (r) => r.title.toLowerCase() === detail.title.toLowerCase(),
+            (r) => r.title.toLowerCase() === detail.title.display.toLowerCase(),
           ) ?? results[0];
           setPaheSession(best.session);
         }
       })
       .catch(() => {})
       .finally(() => setSearchingPahe(false));
-  }, [detail?.title, paheSession]);
+  }, [detail?.title?.display, paheSession]);
 
   /* Episode list */
   const { data: epData, isLoading: epLoading } = useQuery<PaheEpisodesResponse>({
@@ -202,13 +201,13 @@ export default function WatchPage() {
                     <>
                       <AlertCircle className="w-8 h-8 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground text-center px-4">
-                        {detail?.title
-                          ? `No stream found for "${detail.title}"`
+                        {detail?.title?.display
+                          ? `No stream found for "${detail.title.display}"`
                           : "Stream not found"}
                       </p>
-                      {paheResults.length === 0 && detail?.title && (
+                      {paheResults.length === 0 && detail?.title?.display && (
                         <a
-                          href={`https://animepahe.si/?s=${encodeURIComponent(detail.title)}`}
+                          href={`https://animepahe.si/?s=${encodeURIComponent(detail.title.display)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-accent hover:underline flex items-center gap-1"
@@ -256,10 +255,10 @@ export default function WatchPage() {
               <div className="rounded-xl border border-border bg-card p-4">
                 <div className="flex gap-4">
                   {detail.cover && (
-                    <img src={detail.cover} alt={detail.title} className="w-16 rounded-lg shrink-0 object-cover" style={{ aspectRatio: "2/3" }} />
+                    <img src={detail.cover} alt={detail.title.display} className="w-16 rounded-lg shrink-0 object-cover" style={{ aspectRatio: "2/3" }} />
                   )}
                   <div className="min-w-0 flex-1">
-                    <h1 className="text-base sm:text-lg font-bold text-foreground leading-tight mb-1">{detail.title}</h1>
+                    <h1 className="text-base sm:text-lg font-bold text-foreground leading-tight mb-1">{detail.title.display}</h1>
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       {detail.score && (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-accent">

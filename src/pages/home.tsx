@@ -30,9 +30,7 @@ const IS_READ: Record<Category, boolean> = {
 
 interface AnimeItem {
   id: number;
-  title: string;
-  cover: string;
-  banner: string;
+  title: { english: string | null; romaji: string | null; native: string | null; display: string };
   genres: string[];
   score: number | null;
   format: string;
@@ -72,7 +70,7 @@ function Top10Card({ item, rank }: { item: AnimeItem; rank: number }) {
         {item.cover ? (
           <img
             src={item.cover}
-            alt={item.title}
+            alt={item.title.display}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
@@ -99,7 +97,7 @@ function Top10Card({ item, rank }: { item: AnimeItem; rank: number }) {
           <span className="text-white text-[10px] font-bold bg-black/60 px-2 py-1 rounded">View</span>
         </div>
       </div>
-      <p className="text-xs text-foreground font-medium mt-1.5 truncate">{item.title}</p>
+      <p className="text-xs text-foreground font-medium mt-1.5 truncate">{item.title.display}</p>
       <p className="text-[10px] text-muted-foreground truncate">{item.genres.slice(0, 2).join(" · ")}</p>
     </Link>
   );
@@ -183,7 +181,7 @@ export default function HomePage() {
                 <span className="text-accent text-[10px] sm:text-xs font-semibold uppercase tracking-widest">Trending this week</span>
               </div>
               <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-foreground leading-tight mb-2 sm:mb-3">
-                {hero.title}
+                {hero.title.display}
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                 {hero.format}{hero.year ? ` · ${hero.year}` : ""}{hero.genres.length ? ` · ${hero.genres.slice(0, 2).join(" / ")}` : ""}
@@ -285,9 +283,9 @@ export default function HomePage() {
               {items.slice(1, 4).map((item) => (
                 <div key={item.id} className="shrink-0 w-36 sm:w-44">
                   <div className="rounded-lg overflow-hidden border border-border aspect-video bg-muted">
-                    {item.cover && <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />}
+                    {item.cover && <img src={item.cover} alt={item.title.display} className="w-full h-full object-cover" />}
                   </div>
-                  <p className="text-xs text-foreground font-medium mt-2 truncate">{item.title}</p>
+                  <p className="text-xs text-foreground font-medium mt-2 truncate">{item.title.display}</p>
                   <div className="mt-1.5 h-0.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-accent rounded-full" style={{ width: "40%" }} />
                   </div>
