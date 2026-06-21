@@ -10,7 +10,7 @@ import { apiUrl } from "../lib/api";
 
 interface WikiDetail {
   id: number;
-  title: { english: string | null; romaji: string | null; native: string | null; display: string };
+  title: string;
   cover: string;
   banner: string;
   description: string;
@@ -349,7 +349,7 @@ export default function WikiDetailPage() {
       {/* Banner */}
       <div className="relative h-56 sm:h-72 overflow-hidden">
         {data.banner || data.cover ? (
-          <img src={data.banner || data.cover} alt={data.title.display} className="w-full h-full object-cover object-top" />
+          <img src={data.banner || data.cover} alt={data.title} className="w-full h-full object-cover object-top" />
         ) : (
           <div className="w-full h-full bg-muted" />
         )}
@@ -368,7 +368,7 @@ export default function WikiDetailPage() {
           {/* Cover */}
           <div className="shrink-0">
             <div className="w-28 sm:w-40 aspect-[2/3] rounded-xl overflow-hidden border-2 border-border shadow-xl bg-muted">
-              {data.cover && <img src={data.cover} alt={data.title.display} className="w-full h-full object-cover" />}
+              {data.cover && <img src={data.cover} alt={data.title} className="w-full h-full object-cover" />}
             </div>
             <div className="mt-3 flex flex-col gap-2">
               {!isRead ? (
@@ -381,7 +381,7 @@ export default function WikiDetailPage() {
                 </button>
               )}
               <Link
-                href={`/downloads?q=${encodeURIComponent(data.title.display)}`}
+                href={`/downloads?q=${encodeURIComponent(data.title)}`}
                 className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors"
               >
                 Download
@@ -392,13 +392,9 @@ export default function WikiDetailPage() {
 
           {/* Info */}
           <div className="flex-1 min-w-0 pt-20 sm:pt-24">
-            {data.title.native && <p className="text-xs text-muted-foreground mb-1">{data.title.native}</p>}
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight mb-1">
-              {data.title.display}
+              {data.title}
             </h1>
-            {data.title.romaji && data.title.romaji !== data.title.display && (
-              <p className="text-sm text-muted-foreground mb-3">{data.title.romaji}</p>
-            )}
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {data.score && (

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import Hls from "hls.js";
 import {
   ChevronLeft, Play, List, Star, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Search, ChevronRight,
@@ -10,7 +11,7 @@ import { apiUrl } from "../lib/api";
 /* ── Types ─────────────────────────────────────────── */
 interface AnimeDetail {
   id: number;
-  title: { english: string | null; romaji: string | null; native: string | null; display: string };
+  title: string;
   cover: string; banner: string;
   description: string; genres: string[]; score: number | null;
   format: string; episodes: number | null; year: number | null; status: string;
@@ -23,11 +24,14 @@ interface PaheEpisode {
 interface PaheEpisodesResponse {
   data: PaheEpisode[]; current_page: number; last_page: number; total: number;
 }
+interface StreamSource { url: string; isM3U8: boolean; resolution: string; isDub: boolean; }
+interface StreamSourcesResponse {
+  success: boolean;
+  data: { animeSession: string; episodeSession: string; sources: StreamSource[] } | null;
+  error?: string;
+}
 
 /* ── Helpers ────────────────────────────────────────── */
-function watchUrl(animeSession: string, epSession: string) {
-  return `https://animepahe.si/play/${animeSession}/${epSession}`;
-}
 
 const HISTORY_KEY = "aw_history";
 function getHistory(): Record<string, { epNum: number; session: string }> {
@@ -65,9 +69,9 @@ export default function WatchPage() {
 
   /* Search AnimePahe when we have the title */
   useEffect(() => {
-    if (!detail?.title?.display || paheSession) return;
+    if (!detail?.title || paheSession) return;
     setSearchingPahe(true);
-    fetch(apiUrl(`/api/animepahe/search?q=${encodeURIComponent(detail.title.display)}`))
+    fetch(apiUrl(`/api/animepahe/search?q=${encodeURIComponent(detail.title)}`))
       .then((r) => r.json())
       .then((json) => {
         const results: PaheResult[] = json.data ?? [];
@@ -77,14 +81,14 @@ export default function WatchPage() {
         } else if (results.length > 1) {
           /* Auto-pick best match */
           const best = results.find(
-            (r) => r.title.toLowerCase() === detail.title.display.toLowerCase(),
+            (r) => r.title.toLowerCase() === detail.title.toLowerCase(),
           ) ?? results[0];
           setPaheSession(best.session);
         }
       })
       .catch(() => {})
       .finally(() => setSearchingPahe(false));
-  }, [detail?.title?.display, paheSession]);
+  }, [detail?.title, paheSession]);
 
   /* Episode list */
   const { data: epData, isLoading: epLoading } = useQuery<PaheEpisodesResponse>({
@@ -120,9 +124,42 @@ export default function WatchPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const embedUrl = selectedEp && paheSession
-    ? watchUrl(paheSession, selectedEp.session)
-    : null;
+  /* Stream sources for the selected episode */
+  const { data: sourcesData, isLoading: sourcesLoading } = useQuery<StreamSourcesResponse>({
+    queryKey: ["pahe-sources", paheSession, selectedEp?.session],
+    queryFn: async () => {
+      const res = await fetch(
+        apiUrl(`/api/animepahe/sources/${paheSession}/${selectedEp!.session}`),
+      );
+      return res.json();
+    },
+    enabled: !!paheSession && !!selectedEp,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  /* Pick best quality source (prefer sub, highest resolution) */
+  const activeSource = (() => {
+    const sources = sourcesData?.data?.sources ?? [];
+    if (!sources.length) return null;
+    const subSources = sources.filter((s) => !s.isDub);
+    const pool = subSources.length ? subSources : sources;
+    return pool.slice().sort((a, b) => Number(b.resolution) - Number(a.resolution))[0] ?? null;
+  })();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !activeSource?.url) return;
+    let hls: Hls | null = null;
+    if (Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(activeSource.url);
+      hls.attachMedia(video);
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = activeSource.url;
+    }
+    return () => { hls?.destroy(); };
+  }, [activeSource?.url]);
 
   if (detailLoading) {
     return (
@@ -145,18 +182,18 @@ export default function WatchPage() {
           <div className="space-y-4">
             {/* Player */}
             <div className="rounded-xl overflow-hidden bg-black border border-border" style={{ aspectRatio: "16/9" }}>
-              {embedUrl ? (
-                <iframe
-                  key={embedUrl}
-                  src={embedUrl}
+              {activeSource ? (
+                <video
+                  key={activeSource.url}
+                  ref={videoRef}
                   className="w-full h-full"
-                  allowFullScreen
-                  allow="autoplay; fullscreen"
-                  referrerPolicy="no-referrer"
+                  controls
+                  autoPlay
+                  playsInline
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                  {searchingPahe || epLoading ? (
+                  {searchingPahe || epLoading || sourcesLoading ? (
                     <>
                       <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                       <p className="text-xs text-muted-foreground">Finding stream…</p>
@@ -165,13 +202,13 @@ export default function WatchPage() {
                     <>
                       <AlertCircle className="w-8 h-8 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground text-center px-4">
-                        {detail?.title?.display
-                          ? `No stream found for "${detail.title.display}"`
+                        {detail?.title
+                          ? `No stream found for "${detail.title}"`
                           : "Stream not found"}
                       </p>
-                      {paheResults.length === 0 && detail?.title?.display && (
+                      {paheResults.length === 0 && detail?.title && (
                         <a
-                          href={`https://animepahe.si/?s=${encodeURIComponent(detail.title.display)}`}
+                          href={`https://animepahe.si/?s=${encodeURIComponent(detail.title)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-accent hover:underline flex items-center gap-1"
@@ -219,10 +256,10 @@ export default function WatchPage() {
               <div className="rounded-xl border border-border bg-card p-4">
                 <div className="flex gap-4">
                   {detail.cover && (
-                    <img src={detail.cover} alt={detail.title.display} className="w-16 rounded-lg shrink-0 object-cover" style={{ aspectRatio: "2/3" }} />
+                    <img src={detail.cover} alt={detail.title} className="w-16 rounded-lg shrink-0 object-cover" style={{ aspectRatio: "2/3" }} />
                   )}
                   <div className="min-w-0 flex-1">
-                    <h1 className="text-base sm:text-lg font-bold text-foreground leading-tight mb-1">{detail.title.display}</h1>
+                    <h1 className="text-base sm:text-lg font-bold text-foreground leading-tight mb-1">{detail.title}</h1>
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       {detail.score && (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-accent">
