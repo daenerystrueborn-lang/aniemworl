@@ -140,11 +140,7 @@ export default function ProfilePage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ pfp: url }),
       });
-<<<<<<< HEAD
       updatePfp(apiUrl(url));
-=======
-      updatePfp(url);
->>>>>>> 61fdd465bdb0b8212177fe70a60b20a447c295ab
     } catch { /* ignore */ } finally {
       setPfpLoading(false);
       if (fileRef.current) fileRef.current.value = "";
