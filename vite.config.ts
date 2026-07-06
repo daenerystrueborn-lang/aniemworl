@@ -22,5 +22,5 @@ export default defineConfig({
       "/uploads": { target: "https://animeastral.qzz.io", changeOrigin: true, secure: false },
     },
   },
-  preview: { port: 4173, host: "0.0.0.0" },
+  preview: { port: 8183, host: "0.0.0.0" },
 });
