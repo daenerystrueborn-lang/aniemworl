@@ -141,9 +141,7 @@ export default function NavBar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0 mr-2">
-          <div className="w-7 h-7 rounded bg-accent flex items-center justify-center">
-            <span className="text-accent-foreground font-black text-sm leading-none">A</span>
-          </div>
+          <img src="/logo.png" alt="Animeastral" className="w-7 h-7 rounded object-cover" />
           <span className="font-bold text-foreground tracking-tight text-base hidden sm:block">Animeastral</span>
         </Link>
 
