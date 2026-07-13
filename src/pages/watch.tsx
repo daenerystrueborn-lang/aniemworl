@@ -27,6 +27,7 @@ interface WikiDetail {
 interface Episode {
   number: number;
   title: string;
+  thumbnail: string | null;
   filler: boolean;
   recap: boolean;
 }
@@ -37,8 +38,8 @@ async function fetchDetails(id: string): Promise<WikiDetail> {
   return res.json();
 }
 
-async function fetchEpisodes(malId: number): Promise<Episode[]> {
-  const res = await fetch(apiUrl(`/api/anime/episodes/${malId}`));
+async function fetchEpisodes(anilistId: number): Promise<Episode[]> {
+  const res = await fetch(apiUrl(`/api/anime/episodes/${anilistId}`));
   if (!res.ok) throw new Error("Failed");
   const data = await res.json();
   return data.episodes ?? [];
@@ -344,26 +345,27 @@ export default function WatchPage() {
   }, [anime?.relations]);
 
   const { data: fetchedEpisodes = [], isLoading: episodesLoading } = useQuery<Episode[]>({
-    queryKey: ["episodes", anime?.malId],
-    queryFn: () => fetchEpisodes(anime!.malId!),
+    queryKey: ["episodes", anime?.id],
+    queryFn: () => fetchEpisodes(anime!.id),
     staleTime: 30 * 60 * 1000,
-    enabled: !!anime?.malId,
+    enabled: !!anime?.id,
   });
 
   const episodes = useMemo(() => {
     if (fetchedEpisodes.length > 0) return fetchedEpisodes;
-    if (!anime?.malId && anime?.episodes) {
+    // Fallback only fires if the backend call itself failed outright
+    // (network error, AniList down) but we still know the total count.
+    if (anime?.episodes) {
       return Array.from({ length: anime.episodes }, (_, i) => ({
         number: i + 1,
         title: `Episode ${i + 1}`,
-        titleJapanese: null,
-        aired: null,
+        thumbnail: null,
         filler: false,
         recap: false,
       }));
     }
     return fetchedEpisodes;
-  }, [fetchedEpisodes, anime?.malId, anime?.episodes]);
+  }, [fetchedEpisodes, anime?.episodes]);
 
   const currentIndex = useMemo(
     () => episodes.findIndex((e) => e.number === currentEp),
