@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
 import { Search, Star, Loader2, TrendingUp, X } from "lucide-react";
 import { apiUrl } from "../lib/api";
+import CharacterStrip from "../components/CharacterStrip";
 
 interface AnimeItem {
   id: number;
@@ -78,6 +79,8 @@ export default function WikiPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-0.5">Wiki</h1>
           <p className="text-sm text-muted-foreground">Search any title to explore full details, characters, and more.</p>
         </div>
+
+        <CharacterStrip />
 
         <div className="flex flex-wrap gap-2 sm:gap-3 mb-5">
           <div className="relative flex-1 min-w-[180px] max-w-md">
