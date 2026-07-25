@@ -15,12 +15,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 5383,
+    port: 8715,
     host: "0.0.0.0",
     proxy: {
       "/api": { target: "https://animeastral.qzz.io", changeOrigin: true, secure: false },
       "/uploads": { target: "https://animeastral.qzz.io", changeOrigin: true, secure: false },
     },
   },
-  preview: { port: 5383, host: "0.0.0.0" },
+  preview: { port: 8715, host: "0.0.0.0" },
 });
