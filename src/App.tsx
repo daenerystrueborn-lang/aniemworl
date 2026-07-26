@@ -12,6 +12,7 @@ import WikiPage from "@/pages/wiki";
 import WikiDetailPage from "@/pages/wiki-detail";
 import WatchPage from "@/pages/watch";
 import AnimePage from "@/pages/anime";
+import MoviesPage from "@/pages/movies";
 import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/lib/auth-context";
 
@@ -27,6 +28,7 @@ function Router() {
         <Route path="/downloads" component={DownloadsPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/anime" component={AnimePage} />
+        <Route path="/movies" component={MoviesPage} />
         <Route path="/watch/:id" component={WatchPage} />
         <Route path="/wiki/:id" component={WikiDetailPage} />
         <Route path="/wiki" component={WikiPage} />

@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft, ChevronRight, Loader2, AlertCircle,
   Search, List, Grid3X3, Image as ImageIcon, Play,
-  SkipBack, SkipForward, CheckSquare, Square,
+  SkipBack, SkipForward, CheckSquare, Square, Wifi, WifiOff,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
+import { getImdbIdByTitle } from "@/lib/omdb";
 
 interface WikiDetail {
   id: number;
@@ -45,10 +46,6 @@ async function fetchEpisodes(anilistId: number): Promise<Episode[]> {
   return data.episodes ?? [];
 }
 
-function getEpisodeId(ep: Episode) {
-  return `ep-${ep.number}`;
-}
-
 type DisplayMode = "list" | "grid" | "image";
 
 function EpisodeList({
@@ -84,7 +81,6 @@ function EpisodeList({
     return opts;
   }, [episodes]);
 
-  // Jump interval when currentEp changes
   useEffect(() => {
     const idx = episodes.findIndex((e) => e.number === currentEp);
     if (idx === -1) return;
@@ -96,7 +92,6 @@ function EpisodeList({
     }
   }, [currentEp, episodes, intervalOptions]);
 
-  // Mark current as watched
   useEffect(() => {
     setWatched((prev) => {
       if (prev.has(currentEp)) return prev;
@@ -107,7 +102,6 @@ function EpisodeList({
     });
   }, [currentEp, animeId]);
 
-  // Scroll selected into view
   useEffect(() => {
     const timer = setTimeout(() => {
       if (selectedRef.current && containerRef.current) {
@@ -133,7 +127,6 @@ function EpisodeList({
 
   return (
     <div className="flex flex-col h-full bg-card rounded-lg overflow-hidden border border-border">
-      {/* Controls */}
       <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/60 border-b border-border shrink-0">
         <select
           className="text-xs bg-muted text-foreground border border-border rounded px-1.5 py-1 flex-1 min-w-0"
@@ -169,7 +162,6 @@ function EpisodeList({
         </button>
       </div>
 
-      {/* Episodes */}
       <div
         ref={containerRef}
         className={`overflow-y-auto flex-1 p-1.5 ${displayMode === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-1" : "flex flex-col gap-0.5"}`}
@@ -221,9 +213,13 @@ function EpisodeList({
   );
 }
 
+// Quality/source labels — proxy first, then megaplay sub/dub, then vidwish backup
+const QUALITY_LABELS = ["Proxy HD", "Sub", "Dub", "Backup"];
+
 function IFramePlayer({
   anilistId,
   episodeNumber,
+  animeTitle,
   onPrev,
   onNext,
   hasPrev,
@@ -234,6 +230,7 @@ function IFramePlayer({
 }: {
   anilistId: string;
   episodeNumber: number;
+  animeTitle: string;
   onPrev: () => void;
   onNext: () => void;
   hasPrev: boolean;
@@ -243,53 +240,143 @@ function IFramePlayer({
   onEnded: () => void;
 }) {
   const [loading, setLoading] = useState(true);
-  const sources = [
-    `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`,
-    `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/dub`,
-    `https://vidwish.live/stream/ani/${anilistId}/${episodeNumber}/sub`,
-  ];
   const [sourceIdx, setSourceIdx] = useState(0);
-  const iframeSrc = sources[sourceIdx];
+  const [imdbId, setImdbId] = useState<string | null>(null);
+  const [omdbLoading, setOmdbLoading] = useState(true);
+  const [proxyFailed, setProxyFailed] = useState(false);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iframeKey = useRef(0);
 
-  useEffect(() => { setLoading(true); setSourceIdx(0); }, [anilistId, episodeNumber]);
+  // Look up IMDB ID from OMDB when the anime title is available
+  useEffect(() => {
+    if (!animeTitle) return;
+    setOmdbLoading(true);
+    setProxyFailed(false);
+    setImdbId(null);
+
+    getImdbIdByTitle(animeTitle).then((id) => {
+      setImdbId(id);
+      setOmdbLoading(false);
+    });
+  }, [animeTitle]);
+
+  // Reset when episode changes
+  useEffect(() => {
+    setLoading(true);
+    setProxyFailed(false);
+    // If proxy is currently selected, stay on it; otherwise stay on current source
+    // Don't reset to 0 if user manually switched away from proxy
+    if (sourceIdx === 0) {
+      iframeKey.current += 1;
+    }
+  }, [episodeNumber]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-fallback: if proxy iframe doesn't load within 8s, switch to megaplay sub
+  useEffect(() => {
+    if (sourceIdx !== 0 || !loading) return;
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
+    fallbackTimerRef.current = setTimeout(() => {
+      if (loading && sourceIdx === 0) {
+        setProxyFailed(true);
+        setSourceIdx(1); // fall back to Sub
+        setLoading(true);
+        iframeKey.current += 1;
+      }
+    }, 8000);
+
+    return () => {
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, [sourceIdx, loading]);
+
+  function buildSrc(idx: number): string {
+    switch (idx) {
+      case 0:
+        // Proxy HD — only usable when we have an IMDB ID
+        return imdbId
+          ? `https://proxy.garageband.rocks/embed/tv/${imdbId}?autonext=1`
+          : `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`; // fallback if no imdb id
+      case 1:
+        return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`;
+      case 2:
+        return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/dub`;
+      case 3:
+        return `https://vidwish.live/stream/ani/${anilistId}/${episodeNumber}/sub`;
+      default:
+        return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`;
+    }
+  }
+
+  function switchSource(idx: number) {
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    setSourceIdx(idx);
+    setLoading(true);
+    setProxyFailed(false);
+    iframeKey.current += 1;
+  }
+
+  const iframeSrc = buildSrc(sourceIdx);
 
   return (
     <div className="space-y-2">
       <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-border">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+        {(loading || omdbLoading) && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 gap-2">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            {omdbLoading && (
+              <p className="text-xs text-muted-foreground">Looking up stream source…</p>
+            )}
           </div>
         )}
-        <iframe
-          key={`${anilistId}-${episodeNumber}-${sourceIdx}`}
-          src={iframeSrc}
-          className="w-full h-full"
-          allowFullScreen
-          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-          onLoad={() => setLoading(false)}
-        />
+        {!omdbLoading && (
+          <iframe
+            key={`${anilistId}-${episodeNumber}-${sourceIdx}-${iframeKey.current}`}
+            src={iframeSrc}
+            className="w-full h-full"
+            allowFullScreen
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+            onLoad={() => {
+              setLoading(false);
+              if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+            }}
+          />
+        )}
       </div>
-      {/* Server switcher */}
+
+      {/* Quality / source selector */}
       <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground px-1">
-        <span className="font-medium text-foreground">Server:</span>
-        {["Sub", "Dub", "Vidwish"].map((name, i) => (
-          <button
-            key={i}
-            onClick={() => { setSourceIdx(i); setLoading(true); }}
-            className={`px-2 py-0.5 rounded border transition-colors ${sourceIdx === i ? "border-accent text-accent bg-accent/10" : "border-border hover:border-accent/50"}`}
-          >
-            {name}
-          </button>
-        ))}
-        <a
-          href={iframeSrc}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ml-auto px-2 py-0.5 rounded border border-border hover:border-accent/50 transition-colors"
-        >
-          Open ↗
-        </a>
+        <span className="font-medium text-foreground">Quality:</span>
+        {QUALITY_LABELS.map((name, i) => {
+          const isProxy = i === 0;
+          const unavailable = isProxy && !imdbId && !omdbLoading;
+          return (
+            <button
+              key={i}
+              onClick={() => switchSource(i)}
+              disabled={unavailable}
+              title={unavailable ? "Could not find IMDB ID for this title" : undefined}
+              className={`px-2 py-0.5 rounded border transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${
+                sourceIdx === i ? "border-accent text-accent bg-accent/10" : "border-border hover:border-accent/50"
+              }`}
+            >
+              {isProxy && (
+                imdbId ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5" />
+              )}
+              {name}
+              {isProxy && proxyFailed && sourceIdx !== 0 && (
+                <span className="text-[9px] text-yellow-400">(auto-switched)</span>
+              )}
+            </button>
+          );
+        })}
+        {/* Status indicator */}
+        {omdbLoading && (
+          <span className="text-[10px] text-muted-foreground/60 italic">fetching IMDB…</span>
+        )}
+        {!omdbLoading && !imdbId && (
+          <span className="text-[10px] text-yellow-400/80">Proxy unavailable — using megaplay</span>
+        )}
       </div>
 
       {/* Controls bar */}
@@ -353,8 +440,6 @@ export default function WatchPage() {
 
   const episodes = useMemo(() => {
     if (fetchedEpisodes.length > 0) return fetchedEpisodes;
-    // Fallback only fires if the backend call itself failed outright
-    // (network error, AniList down) but we still know the total count.
     if (anime?.episodes) {
       return Array.from({ length: anime.episodes }, (_, i) => ({
         number: i + 1,
@@ -393,7 +478,6 @@ export default function WatchPage() {
     if (hasNext) navigateToEp(episodes[currentIndex + 1].number);
   }, [hasNext, currentIndex, episodes, navigateToEp]);
 
-  // Save watch history
   useEffect(() => {
     if (!anime || !currentEp) return;
     try {
@@ -451,6 +535,7 @@ export default function WatchPage() {
             <IFramePlayer
               anilistId={id}
               episodeNumber={currentEp}
+              animeTitle={animeTitle}
               onPrev={handlePrev}
               onNext={handleNext}
               hasPrev={hasPrev}
