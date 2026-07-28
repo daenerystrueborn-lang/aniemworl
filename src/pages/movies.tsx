@@ -1,15 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Search, X, Film, Star, Loader2, Play, ChevronDown,
-  ExternalLink, Info,
+  ExternalLink, Info, Tv,
 } from "lucide-react";
-import { searchOmdb, type OmdbMovie } from "@/lib/omdb";
+import { searchOmdb, getOmdbById, getOmdbSeason, type OmdbMovie, type OmdbEpisode } from "@/lib/omdb";
 
 const PLACEHOLDER_POSTER = "https://via.placeholder.com/300x450/1a1a1a/666?text=No+Poster";
 
 /* ─── Inline Player ─── */
 function InlinePlayer({ movie, onClose }: { movie: OmdbMovie; onClose: () => void }) {
-  const src = `https://proxy.garageband.rocks/embed/movie/${movie.imdbID}`;
+  const isSeries = movie.Type === "series";
+
+  const [totalSeasons, setTotalSeasons] = useState<number | null>(null);
+  const [season, setSeason] = useState(1);
+  const [episode, setEpisode] = useState(1);
+  const [episodes, setEpisodes] = useState<OmdbEpisode[]>([]);
+  const [episodesLoading, setEpisodesLoading] = useState(false);
+
   const poster =
     movie.Poster && movie.Poster !== "N/A" ? movie.Poster : PLACEHOLDER_POSTER;
   const playerRef = useRef<HTMLDivElement | null>(null);
@@ -18,6 +25,33 @@ function InlinePlayer({ movie, onClose }: { movie: OmdbMovie; onClose: () => voi
   useEffect(() => {
     playerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [movie.imdbID]);
+
+  // For series: look up total season count, then reset to season 1 / episode 1
+  useEffect(() => {
+    if (!isSeries) return;
+    setTotalSeasons(null);
+    setSeason(1);
+    setEpisode(1);
+    getOmdbById(movie.imdbID).then((details) => {
+      const total = details?.totalSeasons ? parseInt(details.totalSeasons, 10) : 1;
+      setTotalSeasons(total > 0 ? total : 1);
+    });
+  }, [isSeries, movie.imdbID]);
+
+  // For series: fetch episode list whenever season changes
+  useEffect(() => {
+    if (!isSeries) return;
+    setEpisodesLoading(true);
+    getOmdbSeason(movie.imdbID, season).then((eps) => {
+      setEpisodes(eps);
+      setEpisode(1);
+      setEpisodesLoading(false);
+    });
+  }, [isSeries, movie.imdbID, season]);
+
+  const src = isSeries
+    ? `https://proxy.garageband.rocks/embed/tv/${movie.imdbID}/${season}/${episode}`
+    : `https://proxy.garageband.rocks/embed/movie/${movie.imdbID}`;
 
   return (
     <div
@@ -40,6 +74,11 @@ function InlinePlayer({ movie, onClose }: { movie: OmdbMovie; onClose: () => voi
           <div className="min-w-0 flex-1">
             <h2 className="text-base sm:text-xl font-bold text-foreground leading-tight truncate">
               {movie.Title}
+              {isSeries && (
+                <span className="ml-2 text-xs font-medium text-muted-foreground align-middle">
+                  S{season} · E{episode}
+                </span>
+              )}
             </h2>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
               {movie.Year && <span>{movie.Year}</span>}
@@ -66,13 +105,58 @@ function InlinePlayer({ movie, onClose }: { movie: OmdbMovie; onClose: () => voi
           </button>
         </div>
 
+        {/* Season / Episode picker (series only) */}
+        {isSeries && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="flex items-center gap-1.5">
+              <Tv className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
+                Season
+              </span>
+              <select
+                value={season}
+                onChange={(e) => setSeason(Number(e.target.value))}
+                className="bg-muted border border-border rounded-lg text-xs px-2 py-1 text-foreground"
+              >
+                {Array.from({ length: totalSeasons ?? 1 }, (_, i) => i + 1).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
+                Episode
+              </span>
+              <select
+                value={episode}
+                onChange={(e) => setEpisode(Number(e.target.value))}
+                disabled={episodesLoading || episodes.length === 0}
+                className="bg-muted border border-border rounded-lg text-xs px-2 py-1 text-foreground disabled:opacity-50"
+              >
+                {episodes.length > 0
+                  ? episodes.map((ep) => (
+                      <option key={ep.Episode} value={ep.Episode}>
+                        {ep.Episode}. {ep.Title !== "N/A" ? ep.Title : `Episode ${ep.Episode}`}
+                      </option>
+                    ))
+                  : (
+                      <option value={episode}>{episode}</option>
+                    )}
+              </select>
+              {episodesLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+            </div>
+          </div>
+        )}
+
         {/* Player + sidebar */}
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Video */}
           <div className="flex-1 min-w-0">
             <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-border shadow-2xl">
               <iframe
-                key={movie.imdbID}
+                key={src}
                 src={src}
                 className="absolute inset-0 w-full h-full"
                 allowFullScreen
