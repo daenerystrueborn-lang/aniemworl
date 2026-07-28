@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
 import { Search, Star, Loader2, TrendingUp, X } from "lucide-react";
-import { apiUrl } from "../lib/api";
+import { searchAnime, fetchTrending as fetchTrendingAniList } from "../lib/anilist";
 import CharacterStrip from "../components/CharacterStrip";
 
 interface AnimeItem {
@@ -18,18 +18,21 @@ interface AnimeItem {
 }
 
 async function fetchMedia(q: string, type: string, genre: string): Promise<AnimeItem[]> {
-  if (q.trim()) {
-    const params = new URLSearchParams({ q, type, perPage: "24" });
-    if (genre) params.set("genre", genre);
-    const res = await fetch(apiUrl(`/api/anime/search?${params}`));
-    return res.ok ? (await res.json()).data ?? [] : [];
+  const mediaType = type === "MANGA" ? "MANGA" : "ANIME";
+  try {
+    if (q.trim()) {
+      const { data } = await searchAnime({ q, type: mediaType, perPage: 24, genre: genre || null });
+      return data;
+    }
+    if (genre) {
+      const { data } = await searchAnime({ type: mediaType, perPage: 24, genre });
+      return data;
+    }
+    const { data } = await fetchTrendingAniList({ type: mediaType, perPage: 24 });
+    return data;
+  } catch {
+    return [];
   }
-  if (genre) {
-    const res = await fetch(apiUrl(`/api/anime/search?type=${type}&genre=${encodeURIComponent(genre)}&perPage=24`));
-    return res.ok ? (await res.json()).data ?? [] : [];
-  }
-  const res = await fetch(apiUrl(`/api/anime/trending?type=${type}&perPage=24`));
-  return res.ok ? (await res.json()).data ?? [] : [];
 }
 
 const TYPES = ["Anime", "Manga"] as const;

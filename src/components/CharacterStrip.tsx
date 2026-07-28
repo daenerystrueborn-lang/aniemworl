@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, X, Heart, Loader2, Users } from "lucide-react";
-import { apiUrl } from "../lib/api";
+import { fetchTrendingCharacters as fetchTrendingCharactersAniList, fetchCharacter as fetchCharacterAniList } from "../lib/anilist";
 
 interface CharacterListItem {
   id: number;
@@ -33,16 +33,16 @@ interface CharacterDetail {
 }
 
 async function fetchTrendingCharacters(): Promise<CharacterListItem[]> {
-  const res = await fetch(apiUrl("/api/character/trending?perPage=20"));
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data ?? [];
+  try {
+    const { data } = await fetchTrendingCharactersAniList(20);
+    return data;
+  } catch {
+    return [];
+  }
 }
 
 async function fetchCharacterDetail(id: number): Promise<CharacterDetail> {
-  const res = await fetch(apiUrl(`/api/character/${id}`));
-  if (!res.ok) throw new Error("Failed");
-  return res.json();
+  return fetchCharacterAniList(id);
 }
 
 function CharacterModal({ id, onClose }: { id: number; onClose: () => void }) {

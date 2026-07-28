@@ -5,7 +5,7 @@ import {
   Play, BookOpen, ChevronRight, TrendingUp, Star, Lock,
   Loader2, ChevronLeft, Tv, Film, ArrowRight,
 } from "lucide-react";
-import { apiUrl } from "../lib/api";
+import { fetchTrending as fetchTrendingAniList } from "../lib/anilist";
 
 const CATEGORIES = ["Anime", "Manhwa", "Movies", "Novels"] as const;
 type Category = typeof CATEGORIES[number];
@@ -40,12 +40,13 @@ async function fetchTrending(
   status?: string | null,
   perPage = 12,
 ): Promise<AnimeItem[]> {
-  const params = new URLSearchParams({ type, perPage: String(perPage) });
-  if (format) params.set("format", format);
-  if (status) params.set("status", status);
-  const res = await fetch(apiUrl(`/api/anime/trending?${params}`));
-  if (!res.ok) throw new Error("fetch failed");
-  return (await res.json()).data ?? [];
+  const { data } = await fetchTrendingAniList({
+    type: type === "MANGA" ? "MANGA" : "ANIME",
+    perPage,
+    format: format ?? null,
+    status: status ?? null,
+  });
+  return data;
 }
 
 const GENRES = [

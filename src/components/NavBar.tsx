@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { Search, Menu, X, Star } from "lucide-react";
-import { apiUrl } from "../lib/api";
+import { searchAnime } from "../lib/anilist";
 
 const navLinks = [
   { label: "Home", href: "/" },
@@ -24,8 +24,8 @@ interface Suggestion {
 async function fetchSuggestions(q: string): Promise<Suggestion[]> {
   if (!q.trim()) return [];
   const [anime, manga] = await Promise.all([
-    fetch(apiUrl(`/api/anime/search?q=${encodeURIComponent(q)}&type=ANIME&perPage=4`)).then(r => r.ok ? r.json() : { data: [] }),
-    fetch(apiUrl(`/api/anime/search?q=${encodeURIComponent(q)}&type=MANGA&perPage=3`)).then(r => r.ok ? r.json() : { data: [] }),
+    searchAnime({ q, type: "ANIME", perPage: 4 }).catch(() => ({ data: [] })),
+    searchAnime({ q, type: "MANGA", perPage: 3 }).catch(() => ({ data: [] })),
   ]);
   return [...(anime.data ?? []), ...(manga.data ?? [])].slice(0, 6);
 }

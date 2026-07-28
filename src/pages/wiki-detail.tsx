@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiUrl } from "../lib/api";
+import { fetchAnimeDetails, fetchCharacter as fetchCharacterAniList } from "../lib/anilist";
 
 interface WikiDetail {
   id: number;
@@ -69,15 +70,11 @@ interface CharacterDetail {
 }
 
 async function fetchDetails(id: string): Promise<WikiDetail> {
-  const res = await fetch(apiUrl(`/api/anime/details/${id}`));
-  if (!res.ok) throw new Error("Not found");
-  return res.json();
+  return fetchAnimeDetails(Number(id));
 }
 
 async function fetchCharacter(id: number): Promise<CharacterDetail> {
-  const res = await fetch(apiUrl(`/api/character/${id}`));
-  if (!res.ok) throw new Error("Not found");
-  return res.json();
+  return fetchCharacterAniList(id);
 }
 
 function StatBlock({ label, value }: { label: string; value: string | number | null }) {

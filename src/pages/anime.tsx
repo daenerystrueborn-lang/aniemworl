@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Search, Play, Star, Filter, X, Loader2, Tv } from "lucide-react";
-import { apiUrl } from "../lib/api";
+import { searchAnime, fetchTrending as fetchTrendingAniList } from "../lib/anilist";
 
 interface AnimeItem {
   id: number;
@@ -36,18 +36,22 @@ async function fetchAnime(
   genre?: string | null,
   search?: string,
 ): Promise<AnimeItem[]> {
-  if (search?.trim()) {
-    const params = new URLSearchParams({ q: search.trim(), type: "ANIME", perPage: "24" });
-    const res = await fetch(apiUrl(`/api/anime/search?${params}`));
-    return res.ok ? (await res.json()).data ?? [] : [];
+  try {
+    if (search?.trim()) {
+      const { data } = await searchAnime({ q: search.trim(), type: "ANIME", perPage: 24 });
+      return data;
+    }
+    const { data } = await fetchTrendingAniList({
+      type: "ANIME",
+      perPage: 24,
+      genre: genre ?? null,
+      status: category === "airing" ? "RELEASING" : null,
+      format: category === "movies" ? "MOVIE" : category === "ova" ? "OVA" : null,
+    });
+    return data;
+  } catch {
+    return [];
   }
-  const params = new URLSearchParams({ type: "ANIME", perPage: "24" });
-  if (genre) params.set("genre", genre);
-  if (category === "airing") params.set("status", "RELEASING");
-  if (category === "movies") params.set("format", "MOVIE");
-  if (category === "ova") params.set("format", "OVA");
-  const res = await fetch(apiUrl(`/api/anime/trending?${params}`));
-  return res.ok ? (await res.json()).data ?? [] : [];
 }
 
 function AnimeCard({ item }: { item: AnimeItem }) {

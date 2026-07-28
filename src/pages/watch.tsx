@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { getImdbIdByTitle } from "@/lib/omdb";
+import { fetchAnimeDetails } from "@/lib/anilist";
 
 interface WikiDetail {
   id: number;
@@ -34,11 +35,11 @@ interface Episode {
 }
 
 async function fetchDetails(id: string): Promise<WikiDetail> {
-  const res = await fetch(apiUrl(`/api/anime/details/${id}`));
-  if (!res.ok) throw new Error("Not found");
-  return res.json();
+  return fetchAnimeDetails(Number(id));
 }
 
+// Still backend-only: this hits AnimePahe/streaming sources on the VPS,
+// so it won't load if the VPS is down (expected — that's the streaming part).
 async function fetchEpisodes(anilistId: number): Promise<Episode[]> {
   const res = await fetch(apiUrl(`/api/anime/episodes/${anilistId}`));
   if (!res.ok) throw new Error("Failed");

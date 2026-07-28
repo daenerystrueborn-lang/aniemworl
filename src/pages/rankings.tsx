@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Star, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { apiUrl } from "../lib/api";
+import { fetchRankings as fetchRankingsAniList } from "../lib/anilist";
 
 const CATEGORIES = ["Anime", "Manhwa", "Movies", "Novels"] as const;
 type Category = typeof CATEGORIES[number];
@@ -62,13 +62,15 @@ interface FetchParams {
 }
 
 async function fetchRankings(p: FetchParams): Promise<AnimeItem[]> {
-  const params = new URLSearchParams({ type: p.type, perPage: "50", sort: p.sort });
-  if (p.year) params.set("year", String(p.year));
-  if (p.season) params.set("season", p.season);
-  if (p.format) params.set("format", p.format);
-  const res = await fetch(apiUrl(`/api/anime/rankings?${params}`));
-  if (!res.ok) throw new Error("fetch failed");
-  return (await res.json()).data ?? [];
+  const { data } = await fetchRankingsAniList({
+    type: p.type === "MANGA" ? "MANGA" : "ANIME",
+    perPage: 50,
+    sort: p.sort,
+    year: p.year,
+    season: p.season,
+    format: p.format,
+  });
+  return data;
 }
 
 export default function RankingsPage() {
