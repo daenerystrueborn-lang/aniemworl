@@ -13,6 +13,7 @@ export interface OmdbMovie {
   Director?: string;
   Actors?: string;
   Runtime?: string;
+  Rated?: string;
 }
 
 export async function searchOmdb(
