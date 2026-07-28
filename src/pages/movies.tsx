@@ -230,7 +230,12 @@ export default function MoviesPage() {
   useEffect(() => {
     setLoading(true);
     const terms = [...POPULAR_TERMS].sort(() => Math.random() - 0.5).slice(0, 4);
-    Promise.all(terms.map((t) => searchOmdb(t, "movie").catch(() => ({ results: [] }))))
+    Promise.all(
+      terms.flatMap((t) => [
+        searchOmdb(t, "movie").catch(() => ({ results: [] })),
+        searchOmdb(t, "series").catch(() => ({ results: [] })),
+      ]),
+    )
       .then((all) => {
         const seen = new Set<string>();
         const merged: OmdbMovie[] = [];
@@ -256,8 +261,19 @@ export default function MoviesPage() {
   useEffect(() => {
     if (!debouncedQuery.trim()) return;
     setLoading(true);
-    searchOmdb(debouncedQuery, "movie").then(({ results: res }) => {
-      setResults(res);
+    Promise.all([
+      searchOmdb(debouncedQuery, "movie").catch(() => ({ results: [] })),
+      searchOmdb(debouncedQuery, "series").catch(() => ({ results: [] })),
+    ]).then(([movies, series]) => {
+      const seen = new Set<string>();
+      const merged: OmdbMovie[] = [];
+      for (const m of [...movies.results, ...series.results]) {
+        if (!seen.has(m.imdbID)) {
+          seen.add(m.imdbID);
+          merged.push(m);
+        }
+      }
+      setResults(merged);
       setLoading(false);
     });
   }, [debouncedQuery]);
