@@ -14,6 +14,15 @@ export interface OmdbMovie {
   Actors?: string;
   Runtime?: string;
   Rated?: string;
+  totalSeasons?: string;
+}
+
+export interface OmdbEpisode {
+  Title: string;
+  Released: string;
+  Episode: string;
+  imdbRating?: string;
+  imdbID: string;
 }
 
 export async function searchOmdb(
@@ -43,6 +52,25 @@ export async function getOmdbById(imdbId: string): Promise<OmdbMovie | null> {
     return data.Response === "True" ? data : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fetch the list of episodes for a given season of a series.
+ */
+export async function getOmdbSeason(
+  imdbId: string,
+  season: number,
+): Promise<OmdbEpisode[]> {
+  const params = new URLSearchParams({ apikey: OMDB_KEY, i: imdbId, Season: String(season) });
+  try {
+    const res = await fetch(`${OMDB_BASE}/?${params}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.Response !== "True") return [];
+    return data.Episodes ?? [];
+  } catch {
+    return [];
   }
 }
 
