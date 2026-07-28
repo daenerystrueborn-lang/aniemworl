@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft, ChevronRight, Loader2, AlertCircle,
   Search, List, Grid3X3, Image as ImageIcon, Play,
-  SkipBack, SkipForward, CheckSquare, Square, Wifi, WifiOff,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { getImdbIdByTitle } from "@/lib/omdb";
@@ -345,65 +344,7 @@ function IFramePlayer({
         )}
       </div>
 
-      {/* Quality / source selector */}
-      <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground px-1">
-        <span className="font-medium text-foreground">Quality:</span>
-        {QUALITY_LABELS.map((name, i) => {
-          const isProxy = i === 0;
-          const unavailable = isProxy && !imdbId && !omdbLoading;
-          return (
-            <button
-              key={i}
-              onClick={() => switchSource(i)}
-              disabled={unavailable}
-              title={unavailable ? "Could not find IMDB ID for this title" : undefined}
-              className={`px-2 py-0.5 rounded border transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${
-                sourceIdx === i ? "border-accent text-accent bg-accent/10" : "border-border hover:border-accent/50"
-              }`}
-            >
-              {isProxy && (
-                imdbId ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5" />
-              )}
-              {name}
-              {isProxy && proxyFailed && sourceIdx !== 0 && (
-                <span className="text-[9px] text-yellow-400">(auto-switched)</span>
-              )}
-            </button>
-          );
-        })}
-        {/* Status indicator */}
-        {omdbLoading && (
-          <span className="text-[10px] text-muted-foreground/60 italic">fetching IMDB…</span>
-        )}
-        {!omdbLoading && !imdbId && (
-          <span className="text-[10px] text-yellow-400/80">Proxy unavailable — using megaplay</span>
-        )}
-      </div>
-
-      {/* Controls bar */}
-      <div className="flex items-center gap-2 bg-muted/60 border border-border rounded-lg px-3 py-1.5">
-        <button
-          onClick={onPrev}
-          disabled={!hasPrev}
-          className="flex items-center gap-1 text-xs text-foreground bg-muted border border-border rounded px-2 py-1 hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <SkipBack className="w-3.5 h-3.5" /> Prev
-        </button>
-        <button
-          onClick={onNext}
-          disabled={!hasNext}
-          className="flex items-center gap-1 text-xs text-foreground bg-muted border border-border rounded px-2 py-1 hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          Next <SkipForward className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={onToggleAutoNext}
-          className="flex items-center gap-1 text-xs text-foreground bg-muted border border-border rounded px-2 py-1 hover:bg-muted/70 transition-colors ml-auto"
-        >
-          {autoNext ? <CheckSquare className="w-3.5 h-3.5 text-accent" /> : <Square className="w-3.5 h-3.5" />}
-          Auto Next
-        </button>
-      </div>
+      {/* Quality auto-switches in background — no visible controls needed */}
     </div>
   );
 }

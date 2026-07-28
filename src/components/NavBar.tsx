@@ -4,11 +4,10 @@ import { Search, Menu, X, Star } from "lucide-react";
 import { searchAnime } from "../lib/anilist";
 
 const navLinks = [
-  { label: "Home", href: "/" },
-  { label: "Anime", href: "/anime" },
+  { label: "Home", href: "/home" },
+  { label: "Browse", href: "/anime" },
   { label: "Movies", href: "/movies" },
   { label: "Rankings", href: "/rankings" },
-  { label: "Downloads", href: "/downloads" },
   { label: "Wiki", href: "/wiki" },
 ];
 

@@ -95,16 +95,42 @@ function MovieCard({ movie, onPlay }: { movie: OmdbMovie; onPlay: (m: OmdbMovie)
   );
 }
 
+// Popular search terms for varied initial load
+const POPULAR_TERMS = ["action", "comedy", "thriller", "horror", "sci-fi", "drama", "adventure", "fantasy"];
+
 /* ─── Movies Page ─── */
 export default function MoviesPage() {
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("avengers"); // default popular search
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<OmdbMovie[]>([]);
   const [loading, setLoading] = useState(false);
   const [playingMovie, setPlayingMovie] = useState<OmdbMovie | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Run search when debouncedQuery changes
+  // Load popular mixed movies on first mount
+  useEffect(() => {
+    setLoading(true);
+    const terms = [...POPULAR_TERMS].sort(() => Math.random() - 0.5).slice(0, 4);
+    Promise.all(terms.map((t) => searchOmdb(t, "movie").catch(() => ({ results: [] }))))
+      .then((all) => {
+        const seen = new Set<string>();
+        const merged: OmdbMovie[] = [];
+        for (const { results: res } of all) {
+          for (const m of res) {
+            if (!seen.has(m.imdbID)) { seen.add(m.imdbID); merged.push(m); }
+          }
+        }
+        // Shuffle for variety
+        for (let i = merged.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [merged[i], merged[j]] = [merged[j], merged[i]];
+        }
+        setResults(merged);
+        setLoading(false);
+      });
+  }, []);
+
+  // Run search when debouncedQuery changes (user-triggered only)
   useEffect(() => {
     if (!debouncedQuery.trim()) return;
     setLoading(true);
@@ -123,7 +149,7 @@ export default function MoviesPage() {
 
   function clearSearch() {
     setQuery("");
-    setDebouncedQuery("avengers");
+    setDebouncedQuery("");
   }
 
   return (
@@ -181,7 +207,8 @@ export default function MoviesPage() {
               : debouncedQuery
               ? `Results for "${debouncedQuery}"`
               : "Popular movies"}
-            {!loading && results.length > 0 && ` — ${results.length} titles`}
+            {!loading && results.length > 0 && !debouncedQuery && ` — ${results.length} titles`}
+            {!loading && results.length > 0 && debouncedQuery && ` — ${results.length} titles`}
           </p>
         </div>
 
