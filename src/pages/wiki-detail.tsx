@@ -6,8 +6,8 @@ import {
   ChevronLeft, Loader2, X, Droplets, Library, Check, ChevronDown, Download,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { apiUrl } from "../lib/api";
 import { fetchAnimeDetails, fetchCharacter as fetchCharacterAniList } from "../lib/anilist";
+import { ANILIST_STATUS_LABELS, ANIME_STATUSES, MANGA_STATUSES } from "../lib/anilist-auth";
 
 interface WikiDetail {
   id: number;
@@ -234,24 +234,19 @@ function CharacterModal({ charId, onClose }: { charId: number; onClose: () => vo
   );
 }
 
-const ANIME_STATUSES = ["watching", "plan-to-watch", "completed", "dropped"] as const;
-const READ_STATUSES = ["reading", "plan-to-read", "completed", "dropped"] as const;
-const STATUS_LABELS: Record<string, string> = {
-  watching: "Watching", "plan-to-watch": "Plan to Watch",
-  reading: "Reading", "plan-to-read": "Plan to Read",
-  completed: "Completed", dropped: "Dropped",
-};
-
-function LibraryButton({ mediaId, isRead }: { mediaId: string; isRead: boolean }) {
-  const { token, library, updateLibrary } = useAuth();
+function LibraryButton({
+  mediaId, animeTitle, animeCover, isRead,
+}: { mediaId: string; animeTitle: string; animeCover: string; isRead: boolean }) {
+  const { isLoggedIn, getEntry, saveEntry } = useAuth();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const mediaType = isRead ? "manga" : "anime";
-  const existing = library.find((e) => e.id === mediaId && e.type === mediaType);
-  const statuses = isRead ? READ_STATUSES : ANIME_STATUSES;
+  const numericId = Number(mediaId);
+  const mediaType = isRead ? "MANGA" : "ANIME";
+  const existing = getEntry(numericId);
+  const statuses = isRead ? MANGA_STATUSES : ANIME_STATUSES;
 
-  if (!token) {
+  if (!isLoggedIn) {
     return (
       <a href="/profile" className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-muted-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors">
         <Library className="w-3.5 h-3.5" /> Sign in to save
@@ -260,20 +255,13 @@ function LibraryButton({ mediaId, isRead }: { mediaId: string; isRead: boolean }
   }
 
   async function selectStatus(status: string) {
-    if (!token) return;
     setSaving(true);
     setOpen(false);
-    const entry = {
-      id: mediaId, type: mediaType as "anime" | "manga",
-      status: status as "watching" | "reading" | "completed" | "plan-to-watch" | "plan-to-read" | "dropped",
-      addedAt: existing?.addedAt ?? Date.now(), updatedAt: Date.now(),
-    };
-    updateLibrary(entry);
-    await fetch(apiUrl("/api/auth/library"), {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ id: mediaId, type: mediaType, status }),
-    });
+    try {
+      await saveEntry(numericId, status, animeTitle, animeCover, mediaType);
+    } catch {
+      // saveEntry already logs the error; keep the button usable either way
+    }
     setSaving(false);
   }
 
@@ -285,7 +273,7 @@ function LibraryButton({ mediaId, isRead }: { mediaId: string; isRead: boolean }
         className="w-full inline-flex items-center justify-center gap-2 bg-muted border border-border text-foreground px-3 py-2 rounded text-xs font-semibold hover:bg-muted/70 transition-colors disabled:opacity-50"
       >
         {existing ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Library className="w-3.5 h-3.5" />}
-        {existing ? STATUS_LABELS[existing.status] : "Add to Library"}
+        {existing ? ANILIST_STATUS_LABELS[existing.status] : "Add to Library"}
         <ChevronDown className="w-3 h-3 ml-auto" />
       </button>
       {open && (
@@ -293,7 +281,7 @@ function LibraryButton({ mediaId, isRead }: { mediaId: string; isRead: boolean }
           {statuses.map((s) => (
             <button key={s} onClick={() => selectStatus(s)}
               className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-muted/60 transition-colors ${existing?.status === s ? "text-accent font-semibold" : "text-foreground"}`}>
-              {STATUS_LABELS[s]}
+              {ANILIST_STATUS_LABELS[s]}
               {existing?.status === s && <Check className="w-3 h-3" />}
             </button>
           ))}
@@ -382,7 +370,7 @@ export default function WikiDetailPage() {
                   <Download className="w-3.5 h-3.5" /> Download
                 </Link>
               )}
-              <LibraryButton mediaId={String(data.id)} isRead={isRead} />
+              <LibraryButton mediaId={String(data.id)} animeTitle={data.title.display} animeCover={data.cover} isRead={isRead} />
             </div>
           </div>
 
