@@ -13,6 +13,7 @@ import ProfilePage from "@/pages/profile";
 import WikiPage from "@/pages/wiki";
 import WikiDetailPage from "@/pages/wiki-detail";
 import WatchPage from "@/pages/watch";
+import OAuthCallbackPage from "@/pages/oauth";
 import AnimePage from "@/pages/anime";
 import MoviesPage from "@/pages/movies";
 import NotFound from "@/pages/not-found";
@@ -37,6 +38,7 @@ function RouterInner() {
         <Route path="/anime" component={AnimePage} />
         <Route path="/movies" component={MoviesPage} />
         <Route path="/watch/:id" component={WatchPage} />
+        <Route path="/oauth" component={OAuthCallbackPage} />
         <Route path="/wiki/:id" component={WikiDetailPage} />
         <Route path="/wiki" component={WikiPage} />
         <Route component={NotFound} />

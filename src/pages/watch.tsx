@@ -75,8 +75,8 @@ function EpisodeList({
 
   const intervalOptions = useMemo(() => {
     const opts: { start: number; end: number }[] = [];
-    for (let i = 0; i < episodes.length; i += 100) {
-      opts.push({ start: i, end: Math.min(i + 99, episodes.length - 1) });
+    for (let i = 0; i < episodes.length; i += 50) {
+      opts.push({ start: i, end: Math.min(i + 49, episodes.length - 1) });
     }
     return opts;
   }, [episodes]);
@@ -127,6 +127,13 @@ function EpisodeList({
 
   return (
     <div className="flex flex-col h-full bg-card rounded-lg overflow-hidden border border-border">
+      <div className="px-3 py-2 bg-muted/40 border-b border-border shrink-0">
+        <h3 className="text-sm font-bold text-foreground">Episode Playlist</h3>
+        <p className="text-[11px] text-muted-foreground">
+          {episodes.length} episode{episodes.length === 1 ? "" : "s"}
+          {intervalOptions.length > 1 && ` · Group ${intervalOptions.findIndex(o => o.start === interval[0]) + 1}/${intervalOptions.length}`}
+        </p>
+      </div>
       <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/60 border-b border-border shrink-0">
         <select
           className="text-xs bg-muted text-foreground border border-border rounded px-1.5 py-1 flex-1 min-w-0"
