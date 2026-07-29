@@ -1,135 +1,169 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { apiUrl } from "./api";
+import {
+  createContext, useContext, useEffect, useState, useCallback, type ReactNode,
+} from "react";
+import {
+  getStoredToken, setStoredToken, clearStoredToken,
+  getCustomPfp, setCustomPfp as persistCustomPfp,
+  redirectToAniListLogin,
+  fetchViewer, fetchWatchlist, saveToWatchlist, removeFromWatchlist,
+  type AniListUser, type WatchlistEntry,
+} from "./anilist-auth";
 
-export interface LibraryEntry {
-  id: string;
-  type: "anime" | "manga" | "novel";
-  status: "watching" | "reading" | "completed" | "plan-to-watch" | "plan-to-read" | "dropped";
-  addedAt: number;
-  updatedAt: number;
-}
+/* ─── Types ─────────────────────────────────────────────────── */
 
-interface AuthState {
-  token: string | null;
-  username: string | null;
-  pfp: string | null;
-  library: LibraryEntry[];
-}
+interface AuthContextValue {
+  user: AniListUser | null;
+  watchlist: WatchlistEntry[];
+  isLoggedIn: boolean;
+  isLoading: boolean;
+  customPfp: string | null;
 
-interface AuthContextValue extends AuthState {
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  login: () => void;
   logout: () => void;
-  updatePfp: (url: string) => void;
-  updateLibrary: (entry: LibraryEntry) => void;
-  removeFromLibrary: (id: string, type: string) => void;
+  saveEntry: (mediaId: number, status: string, title: string, cover: string, type: "ANIME" | "MANGA") => Promise<void>;
+  removeEntry: (entryId: number, mediaId: number) => Promise<void>;
+  getEntry: (mediaId: number) => WatchlistEntry | undefined;
+  setCustomPfp: (url: string | null) => void;
+  refetchWatchlist: () => Promise<void>;
+
+  // Legacy: some pages check token to decide if user is signed in
+  token: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SESSION_KEY = "animeastral_token";
-
-async function fetchMe(token: string): Promise<{ username: string; pfp: string | null; library: LibraryEntry[] } | null> {
-  try {
-    const res = await fetch(apiUrl("/api/auth/me"), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
-}
+/* ─── Provider ──────────────────────────────────────────────── */
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    token: null,
-    username: null,
-    pfp: null,
-    library: [],
-  });
+  const [token, setToken] = useState<string | null>(() => getStoredToken());
+  const [user, setUser] = useState<AniListUser | null>(null);
+  const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [customPfp, setCustomPfpState] = useState<string | null>(() => getCustomPfp());
 
+  // On mount / token change, load profile + watchlist
   useEffect(() => {
-    const stored = sessionStorage.getItem(SESSION_KEY);
-    if (!stored) return;
-    fetchMe(stored).then((me) => {
-      if (!me) {
-        sessionStorage.removeItem(SESSION_KEY);
-        return;
-      }
-      setState({ token: stored, username: me.username, pfp: me.pfp, library: me.library });
-    });
-  }, []);
+    if (!token) {
+      setUser(null);
+      setWatchlist([]);
+      return;
+    }
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await fetch(apiUrl("/api/auth/login"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Login failed" }));
-      throw new Error((err as { error?: string }).error ?? "Login failed");
-    }
-    const { token } = await res.json() as { token: string };
-    sessionStorage.setItem(SESSION_KEY, token);
-    const me = await fetchMe(token);
-    if (me) {
-      setState({ token, username: me.username, pfp: me.pfp, library: me.library });
-    }
-  }, []);
+    setIsLoading(true);
+    fetchViewer(token)
+      .then(async (viewer) => {
+        setUser(viewer);
+        const list = await fetchWatchlist(token, viewer.id).catch(() => []);
+        setWatchlist(list);
+      })
+      .catch(() => {
+        // Token invalid / expired
+        clearStoredToken();
+        setToken(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, [token]);
 
-  const register = useCallback(async (username: string, password: string) => {
-    const res = await fetch(apiUrl("/api/auth/register"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Registration failed" }));
-      throw new Error((err as { error?: string }).error ?? "Registration failed");
-    }
-    const { token } = await res.json() as { token: string };
-    sessionStorage.setItem(SESSION_KEY, token);
-    const me = await fetchMe(token);
-    if (me) {
-      setState({ token, username: me.username, pfp: me.pfp, library: me.library });
-    }
+  const login = useCallback(() => {
+    redirectToAniListLogin();
   }, []);
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setState({ token: null, username: null, pfp: null, library: [] });
+    clearStoredToken();
+    setToken(null);
+    setUser(null);
+    setWatchlist([]);
   }, []);
 
-  const updatePfp = useCallback((url: string) => {
-    setState((s) => ({ ...s, pfp: url }));
-  }, []);
+  const refetchWatchlist = useCallback(async () => {
+    if (!token || !user) return;
+    const list = await fetchWatchlist(token, user.id).catch(() => []);
+    setWatchlist(list);
+  }, [token, user]);
 
-  const updateLibrary = useCallback((entry: LibraryEntry) => {
-    setState((s) => {
-      const existing = s.library.findIndex((e) => e.id === entry.id && e.type === entry.type);
-      if (existing >= 0) {
-        const next = [...s.library];
-        next[existing] = entry;
-        return { ...s, library: next };
+  const saveEntry = useCallback(
+    async (mediaId: number, status: string, title: string, cover: string, type: "ANIME" | "MANGA") => {
+      if (!token) return;
+      try {
+        const result = await saveToWatchlist(token, mediaId, status);
+        setWatchlist((prev) => {
+          const existingIdx = prev.findIndex((e) => e.mediaId === mediaId);
+          const updated: WatchlistEntry = {
+            entryId: result.entryId,
+            mediaId,
+            status: result.status,
+            progress: result.progress,
+            title,
+            cover,
+            type,
+            episodes: type === "ANIME" ? null : null,
+            chapters: type === "MANGA" ? null : null,
+          };
+          if (existingIdx >= 0) {
+            const next = [...prev];
+            next[existingIdx] = updated;
+            return next;
+          }
+          return [...prev, updated];
+        });
+      } catch (err) {
+        console.error("Failed to save watchlist entry", err);
+        throw err;
       }
-      return { ...s, library: [...s.library, entry] };
-    });
-  }, []);
+    },
+    [token],
+  );
 
-  const removeFromLibrary = useCallback((id: string, type: string) => {
-    setState((s) => ({
-      ...s,
-      library: s.library.filter((e) => !(e.id === id && e.type === type)),
-    }));
+  const removeEntry = useCallback(
+    async (entryId: number, mediaId: number) => {
+      if (!token) return;
+      try {
+        await removeFromWatchlist(token, entryId);
+        setWatchlist((prev) => prev.filter((e) => e.mediaId !== mediaId));
+      } catch (err) {
+        console.error("Failed to remove watchlist entry", err);
+        throw err;
+      }
+    },
+    [token],
+  );
+
+  const getEntry = useCallback(
+    (mediaId: number) => watchlist.find((e) => e.mediaId === mediaId),
+    [watchlist],
+  );
+
+  const handleSetCustomPfp = useCallback((url: string | null) => {
+    setCustomPfpState(url);
+    persistCustomPfp(url);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, updatePfp, updateLibrary, removeFromLibrary }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        watchlist,
+        isLoggedIn: !!user,
+        isLoading,
+        customPfp,
+        login,
+        logout,
+        saveEntry,
+        removeEntry,
+        getEntry,
+        setCustomPfp: handleSetCustomPfp,
+        refetchWatchlist,
+        token,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
+}
+
+/** Accept the AniList OAuth callback — call this on the /oauth page. */
+export function acceptOAuthToken(rawToken: string): void {
+  setStoredToken(rawToken);
 }
 
 export function useAuth() {
@@ -137,3 +171,6 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
+
+// Legacy export kept so old imports don't break immediately
+export type { WatchlistEntry as LibraryEntry };

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Menu, X, Star } from "lucide-react";
+import { Search, Menu, X, Star, LogIn, LogOut, User } from "lucide-react";
 import { searchAnime } from "../lib/anilist";
+import { useAuth } from "../lib/auth-context";
 
 const navLinks = [
   { label: "Home", href: "/home" },
@@ -58,9 +59,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   function handleSelect(id: number) {
-    setQuery("");
-    setSuggestions([]);
-    setOpen(false);
+    setQuery(""); setSuggestions([]); setOpen(false);
     setLocation(`/wiki/${id}`);
     onNavigate?.();
   }
@@ -131,10 +130,102 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+/* ── Avatar button ─────────────────────────────────────────────── */
+function UserButton({ onNavigate }: { onNavigate?: () => void }) {
+  const { isLoggedIn, user, customPfp, login, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const avatar = customPfp || user?.avatar || null;
+
+  if (!isLoggedIn) {
+    return (
+      <button
+        onClick={login}
+        className="shrink-0 hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-bold hover:bg-accent/90 transition-all hover:scale-105 active:scale-95"
+      >
+        <LogIn className="w-3.5 h-3.5" /> Sign In
+      </button>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative shrink-0 hidden md:block">
+      <button
+        onClick={() => setMenuOpen((v) => !v)}
+        className="w-8 h-8 rounded-full overflow-hidden border-2 border-accent/40 hover:border-accent transition-all hover:scale-105 active:scale-95"
+        title={user?.name ?? "Profile"}
+      >
+        {avatar ? (
+          <img src={avatar} alt={user?.name ?? "avatar"} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-muted flex items-center justify-center">
+            <span className="text-xs text-muted-foreground font-bold">
+              {user?.name?.[0]?.toUpperCase() ?? "A"}
+            </span>
+          </div>
+        )}
+      </button>
+
+      {menuOpen && (
+        <div className="absolute right-0 top-full mt-2 w-52 bg-card border border-border rounded-xl shadow-2xl z-[100] overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0">
+              {avatar ? (
+                <img src={avatar} alt={user?.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-muted flex items-center justify-center">
+                  <span className="text-xs font-bold text-muted-foreground">{user?.name?.[0]?.toUpperCase()}</span>
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{user?.name}</p>
+              <p className="text-[10px] text-muted-foreground">AniList account</p>
+            </div>
+          </div>
+
+          {/* Links */}
+          <div className="py-1">
+            <button
+              onClick={() => { setMenuOpen(false); setLocation("/profile"); onNavigate?.(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted/60 transition-colors text-left"
+            >
+              <User className="w-4 h-4 text-muted-foreground" /> My Profile
+            </button>
+          </div>
+
+          {/* Logout */}
+          <div className="border-t border-border py-1">
+            <button
+              onClick={() => { setMenuOpen(false); logout(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-muted/60 transition-colors text-left"
+            >
+              <LogOut className="w-4 h-4" /> Sign Out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NavBar() {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const { isLoggedIn, user, customPfp, login, logout } = useAuth();
+  const avatar = customPfp || user?.avatar || null;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[hsl(0_0%_4%/0.95)] backdrop-blur-md border-b border-border">
@@ -167,15 +258,27 @@ export default function NavBar() {
           <SearchBox />
         </div>
 
-        {/* Profile avatar */}
-        <Link href="/profile" className="shrink-0 hidden md:block">
-          <div className="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center hover:border-accent/50 transition-colors">
-            <span className="text-xs text-muted-foreground font-medium">?</span>
-          </div>
-        </Link>
+        {/* User button (desktop) */}
+        <UserButton />
 
         {/* Mobile right controls */}
         <div className="flex items-center gap-2 ml-auto md:hidden">
+          {/* Mobile avatar */}
+          {isLoggedIn ? (
+            <Link href="/profile" className="w-7 h-7 rounded-full overflow-hidden border border-accent/40">
+              {avatar ? (
+                <img src={avatar} alt={user?.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-muted flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-muted-foreground">{user?.name?.[0]?.toUpperCase()}</span>
+                </div>
+              )}
+            </Link>
+          ) : (
+            <button onClick={login} className="p-1.5 text-accent hover:text-accent/80">
+              <LogIn className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={() => { setSearchOpen(!searchOpen); setMobileOpen(false); }}
             className="p-1.5 text-muted-foreground hover:text-foreground"
@@ -223,6 +326,21 @@ export default function NavBar() {
             >
               Profile
             </Link>
+            {isLoggedIn ? (
+              <button
+                onClick={() => { setMobileOpen(false); logout(); }}
+                className="px-3 py-2.5 rounded text-sm font-medium text-red-400 hover:bg-muted/60 text-left flex items-center gap-2"
+              >
+                <LogOut className="w-3.5 h-3.5" /> Sign Out
+              </button>
+            ) : (
+              <button
+                onClick={() => { setMobileOpen(false); login(); }}
+                className="px-3 py-2.5 rounded text-sm font-medium text-accent hover:bg-muted/60 text-left flex items-center gap-2"
+              >
+                <LogIn className="w-3.5 h-3.5" /> Sign in with AniList
+              </button>
+            )}
           </nav>
         </div>
       )}

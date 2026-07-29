@@ -1,253 +1,368 @@
-import { useState, useRef } from "react";
-import { BookOpen, Download, Film, LogIn, LogOut, Trash2, ExternalLink } from "lucide-react";
+import { useState } from "react";
 import { Link } from "wouter";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuth, type LibraryEntry } from "@/lib/auth-context";
-import { apiUrl } from "@/lib/api";
+import {
+  LogIn, LogOut, Tv, BookOpen, Trash2, ExternalLink,
+  Edit2, Check, X, Star, BarChart3, Clock, Layers,
+} from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { ANILIST_STATUS_LABELS, type WatchlistEntry } from "@/lib/anilist-auth";
 
-type AuthMode = "signin" | "register";
+/* ─── Status badge ─────────────────────────────────────────────── */
+const STATUS_COLORS: Record<string, string> = {
+  CURRENT: "bg-green-500/15 text-green-400 border-green-500/30",
+  PLANNING: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  COMPLETED: "bg-accent/15 text-accent border-accent/30",
+  DROPPED: "bg-red-500/15 text-red-400 border-red-500/30",
+  PAUSED: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+  REPEATING: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+};
 
-function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { login, register } = useAuth();
-  const [mode, setMode] = useState<AuthMode>("signin");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      if (mode === "signin") await login(username, password);
-      else await register(username, password);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }
-
+function StatusBadge({ status }: { status: string }) {
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-sm bg-card border-border">
-        <DialogHeader>
-          <DialogTitle className="text-foreground">
-            {mode === "signin" ? "Sign In" : "Create Account"}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="flex gap-1 bg-muted p-1 rounded-lg mb-2">
-          {(["signin", "register"] as AuthMode[]).map((m) => (
-            <button key={m} onClick={() => { setMode(m); setError(""); }}
-              className={`flex-1 py-1.5 rounded text-sm font-medium transition-all ${mode === m ? "bg-card text-foreground border border-border shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-              {m === "signin" ? "Sign In" : "Register"}
-            </button>
-          ))}
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Username</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-              placeholder="3-20 characters" autoComplete="username"
-              className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/60" />
-          </div>
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "register" ? "At least 6 characters" : ""}
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/60" />
-          </div>
-          {error && <p className="text-xs text-red-400">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full bg-foreground text-background py-2 rounded text-sm font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50">
-            {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
-          </button>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${STATUS_COLORS[status] ?? "bg-muted text-muted-foreground border-border"}`}>
+      {ANILIST_STATUS_LABELS[status] ?? status}
+    </span>
   );
 }
 
-const STATUS_LABELS: Record<LibraryEntry["status"], string> = {
-  watching: "Watching", reading: "Reading", completed: "Completed",
-  "plan-to-watch": "Plan to Watch", "plan-to-read": "Plan to Read", dropped: "Dropped",
-};
+/* ─── Watchlist entry card ─────────────────────────────────────── */
+function WatchlistCard({ entry, onRemove }: { entry: WatchlistEntry; onRemove: (entryId: number, mediaId: number) => void }) {
+  const [removing, setRemoving] = useState(false);
 
-function LibrarySection({ entries, onRemove }: { entries: LibraryEntry[]; onRemove: (id: string, type: string) => void }) {
-  if (entries.length === 0) return (
-    <p className="text-xs text-muted-foreground text-center py-6">Nothing here yet — browse the Wiki to add titles.</p>
-  );
+  async function handleRemove() {
+    setRemoving(true);
+    onRemove(entry.entryId, entry.mediaId);
+  }
 
-  const byStatus = entries.reduce<Record<string, LibraryEntry[]>>((acc, e) => {
-    const key = `${e.type}||${e.status}`;
-    (acc[key] ??= []).push(e);
-    return acc;
-  }, {});
+  const href = entry.type === "ANIME" ? `/watch/${entry.mediaId}` : `/wiki/${entry.mediaId}`;
 
   return (
-    <div className="space-y-5">
-      {Object.entries(byStatus).map(([key, items]) => {
-        const [type, status] = key.split("||") as [LibraryEntry["type"], LibraryEntry["status"]];
-        return (
-          <div key={key}>
-            <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">
-              {type} · {STATUS_LABELS[status]}
-            </p>
-            <div className="space-y-1.5">
-              {items.map((e) => (
-                <div key={e.id} className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg px-3 py-2">
-                  <Link href={`/wiki/${e.id}`} className="text-sm text-foreground hover:text-accent transition-colors inline-flex items-center gap-1.5">
-                    View #{e.id} <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                  </Link>
-                  <button onClick={() => onRemove(e.id, e.type)}
-                    className="p-1 text-muted-foreground hover:text-red-400 transition-colors" title="Remove">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+    <div className={`flex items-center gap-3 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5 hover:border-accent/30 hover:bg-muted/50 transition-all ${removing ? "opacity-40 pointer-events-none" : ""}`}>
+      {/* Cover */}
+      <Link href={`/wiki/${entry.mediaId}`} className="shrink-0">
+        <div className="w-10 aspect-[2/3] rounded-lg overflow-hidden border border-border bg-muted">
+          {entry.cover ? (
+            <img src={entry.cover} alt={entry.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              {entry.type === "ANIME" ? <Tv className="w-3 h-3 text-muted-foreground/40" /> : <BookOpen className="w-3 h-3 text-muted-foreground/40" />}
             </div>
-          </div>
-        );
-      })}
+          )}
+        </div>
+      </Link>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <Link href={`/wiki/${entry.mediaId}`} className="text-sm font-semibold text-foreground hover:text-accent transition-colors line-clamp-1">
+          {entry.title}
+        </Link>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <StatusBadge status={entry.status} />
+          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            {entry.type}
+          </span>
+          {entry.progress > 0 && (
+            <span className="text-[10px] text-muted-foreground">
+              {entry.type === "ANIME" ? `EP ${entry.progress}` : `CH ${entry.progress}`}
+              {entry.episodes ? ` / ${entry.episodes}` : ""}
+              {entry.chapters ? ` / ${entry.chapters}` : ""}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Link
+          href={href}
+          className="p-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+          title={entry.type === "ANIME" ? "Watch" : "Read"}
+        >
+          {entry.type === "ANIME" ? <Tv className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
+        </Link>
+        <button
+          onClick={handleRemove}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
+          title="Remove from list"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
 
-export default function ProfilePage() {
-  const { token, username, pfp, library, logout, updatePfp, removeFromLibrary } = useAuth();
-  const [authOpen, setAuthOpen] = useState(false);
-  const [pfpLoading, setPfpLoading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const isSignedIn = !!token && !!username;
+/* ─── Watchlist section ────────────────────────────────────────── */
+const STATUS_ORDER = ["CURRENT", "PLANNING", "COMPLETED", "PAUSED", "DROPPED", "REPEATING"];
 
-  async function handlePfpChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !token) return;
-    setPfpLoading(true);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const uploadRes = await fetch(apiUrl("/api/uploads/pfp"), {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form,
-      });
-      if (!uploadRes.ok) throw new Error("Upload failed");
-      const { url } = await uploadRes.json() as { url: string };
-      await fetch(apiUrl("/api/auth/pfp"), {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ pfp: url }),
-      });
-      updatePfp(apiUrl(url));
-    } catch { /* ignore */ } finally {
-      setPfpLoading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  }
+function WatchlistSection({ entries, onRemove }: { entries: WatchlistEntry[]; onRemove: (eId: number, mId: number) => void }) {
+  const [activeType, setActiveType] = useState<"all" | "ANIME" | "MANGA">("all");
+  const [activeStatus, setActiveStatus] = useState<string>("all");
 
-  async function handleRemove(id: string, type: string) {
-    if (!token) return;
-    removeFromLibrary(id, type);
-    await fetch(apiUrl(`/api/auth/library/${type}/${id}`), {
-      method: "DELETE", headers: { Authorization: `Bearer ${token}` },
-    });
+  const filtered = entries.filter((e) => {
+    if (activeType !== "all" && e.type !== activeType) return false;
+    if (activeStatus !== "all" && e.status !== activeStatus) return false;
+    return true;
+  });
+
+  const statuses = [...new Set(entries.map((e) => e.status))].sort(
+    (a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b)
+  );
+
+  if (entries.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+        <Layers className="w-10 h-10 text-muted-foreground/20" />
+        <p className="text-sm text-muted-foreground">Your watchlist is empty.</p>
+        <p className="text-xs text-muted-foreground/60">Browse anime or wiki pages and add titles using the list button.</p>
+        <Link href="/anime" className="mt-2 px-5 py-2 rounded-xl bg-accent text-accent-foreground text-xs font-bold hover:bg-accent/90 transition-all hover:scale-105">
+          Browse Anime
+        </Link>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        {/* Type filter */}
+        <div className="flex gap-1 bg-muted p-0.5 rounded-lg border border-border">
+          {(["all", "ANIME", "MANGA"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setActiveType(t)}
+              className={`px-3 py-1 rounded text-xs font-medium transition-all ${activeType === t ? "bg-card text-foreground border border-border shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {t === "all" ? "All" : t === "ANIME" ? "Anime" : "Manga"}
+            </button>
+          ))}
+        </div>
 
-      <div className="border-b border-border bg-card">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-20 pb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-            <div className="relative w-20 h-20 shrink-0">
-              <div className="w-20 h-20 rounded-full bg-muted border-2 border-border overflow-hidden flex items-center justify-center">
-                {pfp ? (
-                  <img src={pfp} alt={username ?? "avatar"} className="w-full h-full object-cover" />
+        {/* Status filter */}
+        <div className="flex gap-1 flex-wrap">
+          <button
+            onClick={() => setActiveStatus("all")}
+            className={`px-2.5 py-1 rounded text-xs font-medium border transition-all ${activeStatus === "all" ? "bg-accent text-accent-foreground border-accent" : "border-border text-muted-foreground hover:text-foreground hover:border-accent/30"}`}
+          >
+            All
+          </button>
+          {statuses.map((s) => (
+            <button
+              key={s}
+              onClick={() => setActiveStatus(s)}
+              className={`px-2.5 py-1 rounded text-xs font-medium border transition-all ${activeStatus === s ? "bg-accent text-accent-foreground border-accent" : "border-border text-muted-foreground hover:text-foreground hover:border-accent/30"}`}
+            >
+              {ANILIST_STATUS_LABELS[s] ?? s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Count */}
+      <p className="text-xs text-muted-foreground">{filtered.length} title{filtered.length !== 1 ? "s" : ""}</p>
+
+      {/* List */}
+      <div className="space-y-2">
+        {filtered.map((e) => (
+          <WatchlistCard key={`${e.type}-${e.mediaId}`} entry={e} onRemove={onRemove} />
+        ))}
+        {filtered.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-8">No titles match this filter.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Custom PFP editor ────────────────────────────────────────── */
+function PfpEditor({ current, onSave, onCancel }: { current: string | null; onSave: (url: string | null) => void; onCancel: () => void }) {
+  const [url, setUrl] = useState(current ?? "");
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="Paste an image URL…"
+        className="flex-1 bg-muted border border-border rounded px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/60"
+        autoFocus
+      />
+      <button onClick={() => onSave(url || null)} className="p-1.5 rounded bg-accent text-accent-foreground hover:bg-accent/90 transition-colors">
+        <Check className="w-3.5 h-3.5" />
+      </button>
+      <button onClick={onCancel} className="p-1.5 rounded bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors">
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/* ─── Profile Page ─────────────────────────────────────────────── */
+export default function ProfilePage() {
+  const { user, isLoggedIn, isLoading, watchlist, customPfp, login, logout, removeEntry, setCustomPfp } = useAuth();
+  const [editingPfp, setEditingPfp] = useState(false);
+
+  const avatar = customPfp || user?.avatar || null;
+
+  async function handleRemoveEntry(entryId: number, mediaId: number) {
+    await removeEntry(entryId, mediaId);
+  }
+
+  /* ── Not logged in ── */
+  if (!isLoggedIn && !isLoading) {
+    return (
+      <div className="min-h-screen bg-background pt-14">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-20 flex flex-col items-center text-center gap-6">
+          <div className="w-20 h-20 rounded-full bg-muted border-2 border-border flex items-center justify-center">
+            <span className="text-3xl text-muted-foreground">?</span>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground mb-2">Sign in with AniList</h1>
+            <p className="text-muted-foreground text-sm leading-relaxed max-w-md">
+              Log in with your AniList account to sync your watchlist, track your anime progress, and access your profile across all your devices — completely free.
+            </p>
+          </div>
+          <button
+            onClick={login}
+            className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-accent text-accent-foreground font-bold text-sm hover:bg-accent/90 transition-all hover:scale-105 active:scale-95 shadow-xl shadow-accent/20"
+          >
+            <LogIn className="w-4 h-4" /> Sign in with AniList
+          </button>
+          <p className="text-xs text-muted-foreground/60">
+            Don't have an AniList account?{" "}
+            <a href="https://anilist.co/signup" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+              Create one free →
+            </a>
+          </p>
+
+          {/* Feature cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mt-4">
+            {[
+              { icon: <Tv className="w-5 h-5 text-accent" />, title: "Watchlist", desc: "Track what you're watching, completed, and planning." },
+              { icon: <BarChart3 className="w-5 h-5 text-accent" />, title: "Statistics", desc: "See your total episodes watched, chapters read, and more." },
+              { icon: <Star className="w-5 h-5 text-accent" />, title: "Sync with AniList", desc: "Your progress syncs directly to your AniList profile." },
+            ].map(({ icon, title, desc }) => (
+              <div key={title} className="bg-card border border-border rounded-2xl p-5 flex flex-col items-center text-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">{icon}</div>
+                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Loading ── */
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background pt-14 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading your profile…</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Signed in ── */
+  const stats = user?.statistics;
+
+  return (
+    <div className="min-h-screen bg-background pt-14">
+      {/* Profile header */}
+      {user?.bannerImage && (
+        <div className="relative h-32 sm:h-48 overflow-hidden">
+          <img src={user.bannerImage} alt="Banner" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
+        </div>
+      )}
+
+      <div className={`border-b border-border bg-card ${user?.bannerImage ? "-mt-8" : ""}`}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-6 sm:pt-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-5">
+            {/* Avatar */}
+            <div className="relative shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-background bg-muted shadow-xl">
+                {avatar ? (
+                  <img src={avatar} alt={user?.name ?? "avatar"} className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-3xl text-muted-foreground font-bold select-none">
-                    {isSignedIn ? username![0].toUpperCase() : "?"}
-                  </span>
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-3xl font-bold text-muted-foreground">
+                      {user?.name?.[0]?.toUpperCase() ?? "A"}
+                    </span>
+                  </div>
                 )}
               </div>
-              {isSignedIn && (
-                <>
-                  <button onClick={() => fileRef.current?.click()} disabled={pfpLoading}
-                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-accent text-accent-foreground text-[10px] font-bold flex items-center justify-center hover:bg-accent/90 transition-colors border-2 border-background"
-                    title="Change photo">
-                    {pfpLoading ? "…" : "+"}
-                  </button>
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePfpChange} />
-                </>
+              <button
+                onClick={() => setEditingPfp(true)}
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center hover:bg-accent/90 transition-colors border-2 border-background shadow-md"
+                title="Change photo URL"
+              >
+                <Edit2 className="w-2.5 h-2.5" />
+              </button>
+            </div>
+
+            {/* Name + stats */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-3 mb-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">{user?.name}</h1>
+                <a
+                  href={user?.siteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-accent transition-colors"
+                >
+                  AniList profile <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
+
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Tv className="w-3.5 h-3.5 text-accent" />
+                  <span className="font-semibold text-foreground">{stats?.anime.count ?? 0}</span> anime
+                </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Clock className="w-3.5 h-3.5 text-accent" />
+                  <span className="font-semibold text-foreground">{stats?.anime.episodesWatched ?? 0}</span> eps
+                </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <BookOpen className="w-3.5 h-3.5 text-accent" />
+                  <span className="font-semibold text-foreground">{stats?.manga.count ?? 0}</span> manga
+                </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <BarChart3 className="w-3.5 h-3.5 text-accent" />
+                  <span className="font-semibold text-foreground">{watchlist.length}</span> in list
+                </div>
+              </div>
+
+              {editingPfp && (
+                <PfpEditor
+                  current={customPfp}
+                  onSave={(url) => { setCustomPfp(url); setEditingPfp(false); }}
+                  onCancel={() => setEditingPfp(false)}
+                />
               )}
             </div>
 
-            <div className="flex-1">
-              <h1 className="text-xl font-bold text-foreground mb-1">{isSignedIn ? username : "Guest"}</h1>
-              <p className="text-sm text-muted-foreground">
-                {isSignedIn
-                  ? `${library.length} item${library.length !== 1 ? "s" : ""} in library`
-                  : "Sign in to track your watch history, saves, and downloads."}
-              </p>
-            </div>
-
-            {isSignedIn ? (
-              <button onClick={logout}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded border border-border bg-card text-foreground text-sm font-semibold hover:bg-muted transition-colors shrink-0">
-                <LogOut className="w-4 h-4" /> Log Out
-              </button>
-            ) : (
-              <button onClick={() => setAuthOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-foreground text-background text-sm font-semibold hover:bg-foreground/90 transition-colors shrink-0">
-                <LogIn className="w-4 h-4" /> Sign In / Register
-              </button>
-            )}
+            <button
+              onClick={logout}
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card text-foreground text-sm font-semibold hover:bg-muted hover:border-red-400/30 hover:text-red-400 transition-all"
+            >
+              <LogOut className="w-4 h-4" /> Log Out
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-        {isSignedIn ? (
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-base font-bold text-foreground mb-4">Your Library</h2>
-              <LibrarySection entries={library} onRemove={handleRemove} />
-            </div>
-            <div className="border-t border-border pt-8">
-              <h2 className="text-base font-bold text-foreground mb-4">Explore AniVault</h2>
-              <div className="flex flex-wrap gap-3">
-                {[["Home","/"],["Wiki","/wiki"],["Rankings","/rankings"],["Downloads","/downloads"]].map(([l,h])=>(
-                  <Link key={h} href={h} className="px-4 py-2 rounded-lg border border-border bg-card text-sm text-foreground hover:border-accent/40 hover:bg-muted transition-all">{l}</Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-3 gap-6">
-            {[
-              { icon: <Film className="w-5 h-5 text-muted-foreground" />, title: "Watch List", desc: "Keep track of what you're watching, completed, and planning to watch.", action: <button onClick={() => setAuthOpen(true)} className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full hover:bg-accent/20 hover:text-accent transition-colors">Sign in to use</button> },
-              { icon: <BookOpen className="w-5 h-5 text-muted-foreground" />, title: "Reading List", desc: "Track manga and novels you're reading or want to read.", action: <button onClick={() => setAuthOpen(true)} className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full hover:bg-accent/20 hover:text-accent transition-colors">Sign in to use</button> },
-              { icon: <Download className="w-5 h-5 text-muted-foreground" />, title: "Downloads", desc: "Download manga chapters as PDF or novel chapters as TXT/PDF right now.", action: <Link href="/downloads" className="text-xs font-semibold text-accent hover:underline">Go to Downloads →</Link> },
-            ].map(({ icon, title, desc, action }) => (
-              <div key={title} className="bg-card border border-border rounded-2xl p-6 flex flex-col items-center text-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">{icon}</div>
-                <h3 className="font-semibold text-foreground text-sm">{title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-                {action}
-              </div>
-            ))}
-            <div className="sm:col-span-3 border-t border-border pt-8 mt-2">
-              <h2 className="text-base font-bold text-foreground mb-4">Explore AniVault</h2>
-              <div className="flex flex-wrap gap-3">
-                {[["Home","/"],["Wiki","/wiki"],["Rankings","/rankings"],["Downloads","/downloads"]].map(([l,h])=>(
-                  <Link key={h} href={h} className="px-4 py-2 rounded-lg border border-border bg-card text-sm text-foreground hover:border-accent/40 hover:bg-muted transition-all">{l}</Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Watchlist */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        <h2 className="text-base font-bold text-foreground mb-5 flex items-center gap-2">
+          <Layers className="w-4 h-4 text-muted-foreground" /> My List
+        </h2>
+        <WatchlistSection entries={watchlist} onRemove={handleRemoveEntry} />
       </div>
     </div>
   );

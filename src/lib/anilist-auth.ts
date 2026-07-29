@@ -5,7 +5,7 @@
  * SETUP REQUIRED:
  *  1. Go to https://anilist.co/settings/developer → "Create New Client"
  *  2. Set Name: "Animeastral" (or anything)
- *  3. Set Redirect URL: https://astralanime.qzz.io/oauth   ← canonical domain, must match exactly
+ *  3. Set Redirect URL: https://astralanime.qzz.io/oauth   (or your domain)
  *  4. Copy the Client ID and paste it below.
  */
 
