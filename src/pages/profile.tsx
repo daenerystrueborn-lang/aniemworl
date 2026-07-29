@@ -96,20 +96,19 @@ function WatchlistCard({ entry, onRemove }: { entry: WatchlistEntry; onRemove: (
 const STATUS_ORDER = ["CURRENT", "PLANNING", "COMPLETED", "PAUSED", "DROPPED", "REPEATING"];
 
 function WatchlistSection({ entries, onRemove }: { entries: WatchlistEntry[]; onRemove: (eId: number, mId: number) => void }) {
-  const [activeType, setActiveType] = useState<"all" | "ANIME" | "MANGA">("all");
+  const animeEntries = entries.filter((e) => e.type === "ANIME");
   const [activeStatus, setActiveStatus] = useState<string>("all");
 
-  const filtered = entries.filter((e) => {
-    if (activeType !== "all" && e.type !== activeType) return false;
+  const filtered = animeEntries.filter((e) => {
     if (activeStatus !== "all" && e.status !== activeStatus) return false;
     return true;
   });
 
-  const statuses = [...new Set(entries.map((e) => e.status))].sort(
+  const statuses = [...new Set(animeEntries.map((e) => e.status))].sort(
     (a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b)
   );
 
-  if (entries.length === 0) {
+  if (animeEntries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
         <Layers className="w-10 h-10 text-muted-foreground/20" />
@@ -126,19 +125,6 @@ function WatchlistSection({ entries, onRemove }: { entries: WatchlistEntry[]; on
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        {/* Type filter */}
-        <div className="flex gap-1 bg-muted p-0.5 rounded-lg border border-border">
-          {(["all", "ANIME", "MANGA"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setActiveType(t)}
-              className={`px-3 py-1 rounded text-xs font-medium transition-all ${activeType === t ? "bg-card text-foreground border border-border shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              {t === "all" ? "All" : t === "ANIME" ? "Anime" : "Manga"}
-            </button>
-          ))}
-        </div>
-
         {/* Status filter */}
         <div className="flex gap-1 flex-wrap">
           <button
