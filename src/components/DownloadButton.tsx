@@ -68,7 +68,9 @@ type Status =
 
 interface Props {
   /** The .m3u8 URL — can be a master playlist (multiple qualities) or a media playlist */
-  hlsUrl: string;
+  hlsUrl?: string;
+  /** Alternative: async function that resolves the .m3u8 URL on demand (called on first click) */
+  hlsUrlFetcher?: () => Promise<string>;
   /** Desired output filename — .ts extension is added automatically */
   filename: string;
   /** Extra Tailwind classes applied to the wrapper div */
@@ -77,7 +79,7 @@ interface Props {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function DownloadButton({ hlsUrl, filename, className = "" }: Props) {
+export default function DownloadButton({ hlsUrl = "", hlsUrlFetcher, filename, className = "" }: Props) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const abortRef = useRef<AbortController | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -107,12 +109,18 @@ export default function DownloadButton({ hlsUrl, filename, className = "" }: Pro
       setStatus({ kind: "idle" });
       return;
     }
-    if (!hlsUrl) return;
-
     setStatus({ kind: "loadingQualities" });
 
     try {
-      const qualities = await fetchQualities(hlsUrl);
+      let resolvedUrl = hlsUrl;
+      if (!resolvedUrl && hlsUrlFetcher) {
+        resolvedUrl = await hlsUrlFetcher();
+      }
+      if (!resolvedUrl) {
+        setStatus({ kind: "error", message: "No stream URL available" });
+        return;
+      }
+      const qualities = await fetchQualities(resolvedUrl);
 
       if (qualities.length <= 1) {
         // Only one quality — start immediately
@@ -194,7 +202,7 @@ export default function DownloadButton({ hlsUrl, filename, className = "" }: Pro
       {!isDownloading && (
         <button
           onClick={handleMainClick}
-          disabled={isLoadingQ || !hlsUrl}
+          disabled={isLoadingQ || (!hlsUrl && !hlsUrlFetcher)}
           className={`
             inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
             border transition-all duration-200 select-none

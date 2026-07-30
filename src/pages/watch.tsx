@@ -8,6 +8,8 @@ import {
 import { apiUrl } from "@/lib/api";
 import { getImdbIdByTitle } from "@/lib/omdb";
 import { fetchAnimeDetails } from "@/lib/anilist";
+import DownloadButton from "@/components/DownloadButton";
+import { fetchJikanEpisodes } from "@/lib/jikan";
 
 interface WikiDetail {
   id: number;
@@ -52,16 +54,17 @@ function EpisodeList({
   episodes,
   currentEp,
   animeId,
+  animeTitle,
   onSelect,
 }: {
   episodes: Episode[];
   currentEp: number;
   animeId: string;
+  animeTitle: string;
   onSelect: (ep: number) => void;
 }) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
   const [searchTerm, setSearchTerm] = useState("");
-  const [interval, setInterval] = useState<[number, number]>([0, 99]);
   const [watched, setWatched] = useState<Set<number>>(() => {
     try {
       const raw = localStorage.getItem(`watched-${animeId}`);
@@ -72,25 +75,6 @@ function EpisodeList({
   });
   const selectedRef = useRef<HTMLButtonElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-
-  const intervalOptions = useMemo(() => {
-    const opts: { start: number; end: number }[] = [];
-    for (let i = 0; i < episodes.length; i += 50) {
-      opts.push({ start: i, end: Math.min(i + 49, episodes.length - 1) });
-    }
-    return opts;
-  }, [episodes]);
-
-  useEffect(() => {
-    const idx = episodes.findIndex((e) => e.number === currentEp);
-    if (idx === -1) return;
-    for (const { start, end } of intervalOptions) {
-      if (idx >= start && idx <= end) {
-        setInterval([start, end]);
-        break;
-      }
-    }
-  }, [currentEp, episodes, intervalOptions]);
 
   useEffect(() => {
     setWatched((prev) => {
@@ -121,9 +105,7 @@ function EpisodeList({
     );
   }, [episodes, searchTerm]);
 
-  const displayed = searchTerm
-    ? filtered
-    : episodes.slice(interval[0], interval[1] + 1);
+  const displayed = filtered;
 
   return (
     <div className="flex flex-col h-full bg-card rounded-lg overflow-hidden border border-border">
@@ -131,26 +113,10 @@ function EpisodeList({
         <h3 className="text-sm font-bold text-foreground">Episode Playlist</h3>
         <p className="text-[11px] text-muted-foreground">
           {episodes.length} episode{episodes.length === 1 ? "" : "s"}
-          {intervalOptions.length > 1 && ` · Group ${intervalOptions.findIndex(o => o.start === interval[0]) + 1}/${intervalOptions.length}`}
         </p>
       </div>
       <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/60 border-b border-border shrink-0">
-        <select
-          className="text-xs bg-muted text-foreground border border-border rounded px-1.5 py-1 flex-1 min-w-0"
-          value={`${interval[0]}-${interval[1]}`}
-          onChange={(e) => {
-            const [s, en] = e.target.value.split("-").map(Number);
-            setInterval([s, en]);
-          }}
-        >
-          {intervalOptions.map(({ start, end }) => (
-            <option key={start} value={`${start}-${end}`}>
-              EP {episodes[start]?.number ?? start + 1}–{episodes[end]?.number ?? end + 1}
-            </option>
-          ))}
-        </select>
-
-        <div className="flex items-center gap-1 bg-muted border border-border rounded px-2 py-1 flex-shrink-0">
+        <div className="flex items-center gap-1 bg-muted border border-border rounded px-2 py-1 flex-1 min-w-0">
           <Search className="w-3 h-3 text-muted-foreground" />
           <input
             type="text"
@@ -198,18 +164,24 @@ function EpisodeList({
           }
 
           return (
-            <button
-              key={ep.number}
-              ref={isSelected ? selectedRef : undefined}
-              onClick={() => onSelect(ep.number)}
-              className={`${baseClass} ${colorClass} gap-2 px-2 py-1.5`}
-            >
-              <span className="text-xs font-bold w-7 shrink-0 text-right">
-                {isSelected ? <Play className="w-3 h-3" /> : ep.number}
-              </span>
-              <span className="text-xs truncate flex-1">{ep.title}</span>
-              {ep.filler && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">F</span>}
-            </button>
+            <div key={ep.number} className={`${baseClass} ${colorClass} gap-2 px-2 py-1.5`}>
+              <button
+                ref={isSelected ? selectedRef : undefined}
+                onClick={() => onSelect(ep.number)}
+                className="flex items-center gap-2 flex-1 min-w-0 text-left"
+              >
+                <span className="text-xs font-bold w-7 shrink-0 text-right">
+                  {isSelected ? <Play className="w-3 h-3" /> : ep.number}
+                </span>
+                <span className="text-xs truncate flex-1">{ep.title}</span>
+                {ep.filler && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">F</span>}
+              </button>
+              <DownloadButton
+                hlsUrlFetcher={() => fetchEpisodeStreamUrl(animeId, ep.number)}
+                filename={`${animeTitle} - EP ${ep.number}`}
+                className="shrink-0"
+              />
+            </div>
           );
         })}
         {displayed.length === 0 && (
@@ -218,6 +190,17 @@ function EpisodeList({
       </div>
     </div>
   );
+}
+
+async function fetchEpisodeStreamUrl(anilistId: string, episode: number): Promise<string> {
+  try {
+    const res = await fetch(apiUrl(`/api/anime/stream/${anilistId}/${episode}`));
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data.url ?? data.hlsUrl ?? data.streamUrl ?? "";
+  } catch {
+    return "";
+  }
 }
 
 // Quality/source labels — proxy first, then megaplay sub/dub, then vidwish backup
@@ -380,9 +363,32 @@ export default function WatchPage() {
       .sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
   }, [anime?.relations]);
 
+  const { data: streamUrl = "" } = useQuery<string>({
+    queryKey: ["stream-url", id, currentEp],
+    queryFn: async () => {
+      const res = await fetch(apiUrl(`/api/anime/stream/${id}/${currentEp}`));
+      if (!res.ok) return "";
+      const data = await res.json();
+      return data.url ?? data.hlsUrl ?? data.streamUrl ?? "";
+    },
+    enabled: !!id && !!currentEp,
+    staleTime: 10 * 60 * 1000,
+  });
+
   const { data: fetchedEpisodes = [], isLoading: episodesLoading } = useQuery<Episode[]>({
     queryKey: ["episodes", anime?.id],
-    queryFn: () => fetchEpisodes(anime!.id),
+    queryFn: async () => {
+      // Jikan (MAL) first — works frontend-only, no backend needed
+      if (anime!.malId) {
+        try {
+          return await fetchJikanEpisodes(anime!.malId);
+        } catch {
+          // Jikan failed — fall through to VPS
+        }
+      }
+      // VPS fallback
+      return fetchEpisodes(anime!.id);
+    },
     staleTime: 30 * 60 * 1000,
     enabled: !!anime?.id,
   });
@@ -542,12 +548,18 @@ export default function WatchPage() {
                   </select>
                 )}
               </div>
-              <Link
-                href={`/wiki/${id}`}
-                className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" /> Details
-              </Link>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <Link
+                  href={`/wiki/${id}`}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Details
+                </Link>
+                <DownloadButton
+                  hlsUrl={streamUrl}
+                  filename={`${animeTitle} - EP ${currentEp}`}
+                />
+              </div>
             </div>
 
             {/* Description */}
@@ -563,7 +575,7 @@ export default function WatchPage() {
 
           {/* Right: Episode list */}
           <div className="h-[500px] lg:h-auto lg:max-h-[calc(100vh-8rem)] lg:sticky lg:top-20">
-            {episodesLoading ? (
+            {(episodesLoading && episodes.length === 0) ? (
               <div className="h-full bg-card border border-border rounded-lg flex items-center justify-center">
                 <div className="text-center">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto mb-2" />
@@ -583,6 +595,7 @@ export default function WatchPage() {
                 episodes={episodes}
                 currentEp={currentEp}
                 animeId={id}
+                animeTitle={animeTitle}
                 onSelect={navigateToEp}
               />
             )}
