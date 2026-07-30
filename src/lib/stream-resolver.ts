@@ -14,40 +14,98 @@
 
 // ─── CORS proxies (tried in order) ───────────────────────────────────────────
 
-const PROXIES: Array<(url: string) => Promise<string>> = [
-  // corsproxy.io — returns raw response body
-  async (url) => {
-    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-    });
-    if (!res.ok) throw new Error(`corsproxy: HTTP ${res.status}`);
-    return res.text();
-  },
+const PROXY_TIMEOUT_MS = 8000;
 
-  // allorigins — returns JSON { contents: "..." }
-  async (url) => {
-    const res = await fetch(
-      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
+/** Wrap a fetch promise with a hard timeout */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label}: timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); }
     );
-    if (!res.ok) throw new Error(`allorigins: HTTP ${res.status}`);
-    const json = await res.json();
-    if (!json.contents) throw new Error("allorigins: empty contents");
-    return json.contents as string;
+  });
+}
+
+type ProxyFn = (url: string) => Promise<string>;
+
+// ─── Your Cloudflare Worker URL ───────────────────────────────────────────────
+// After deploying the worker, replace this with your real workers.dev URL.
+// e.g. "https://megaplay-proxy.YOUR-SUBDOMAIN.workers.dev"
+const CF_WORKER_URL = import.meta.env.VITE_CF_WORKER_URL as string | undefined;
+
+const PROXIES: Array<{ name: string; fn: ProxyFn }> = [
+  // ── Your own Cloudflare Worker (fastest, most reliable) ──────────────────
+  ...(CF_WORKER_URL
+    ? [
+        {
+          name: "cloudflare-worker",
+          fn: async (url: string) => {
+            const res = await fetch(`${CF_WORKER_URL}?url=${encodeURIComponent(url)}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.text();
+          },
+        },
+      ]
+    : []),
+
+  // ── Public fallbacks (used until you deploy the worker) ──────────────────
+  {
+    name: "corsproxy.io",
+    fn: async (url) => {
+      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    },
+  },
+  {
+    name: "corsproxy.io (url=)",
+    fn: async (url) => {
+      const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    },
+  },
+  {
+    name: "allorigins",
+    fn: async (url) => {
+      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (!json.contents) throw new Error("empty contents");
+      return json.contents as string;
+    },
+  },
+  {
+    name: "codetabs",
+    fn: async (url) => {
+      const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    },
+  },
+  {
+    name: "thingproxy",
+    fn: async (url) => {
+      const res = await fetch(`https://thingproxy.freeboard.io/fetch/${url}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    },
   },
 ];
 
 async function fetchViaProxy(url: string): Promise<string> {
-  let lastErr: unknown;
-  for (const proxy of PROXIES) {
+  const errors: string[] = [];
+  for (const { name, fn } of PROXIES) {
     try {
-      return await proxy(url);
+      return await withTimeout(fn(url), PROXY_TIMEOUT_MS, name);
     } catch (e) {
-      lastErr = e;
+      errors.push(`${name}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  throw new Error(
-    `All proxies failed. Last error: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`
-  );
+  throw new Error(`All proxies failed.\n${errors.join("\n")}`);
 }
 
 // ─── HLS URL extraction (same logic as Android app's resolveHlsFromEmbed) ────
@@ -80,7 +138,7 @@ function extractHlsFromHtml(html: string): string | null {
 
   const extracted = window.slice(contentStart, closePos).trim();
 
-  // Sanity-check: must look like an HTTP URL (m3u8 or not — HLS URLs vary)
+  // Sanity-check: must look like an HTTP URL
   if (!extracted.startsWith("http://") && !extracted.startsWith("https://")) {
     return null;
   }

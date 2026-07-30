@@ -196,7 +196,11 @@ export default function DownloadButton({ hlsUrl = "", hlsUrlFetcher, filename, c
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`relative inline-block ${className}`} ref={dropdownRef}>
+    <div
+      className={`relative inline-block ${className} ${isError || isPicking ? "z-50" : "z-0"}`}
+      style={{ isolation: "isolate" }}
+      ref={dropdownRef}
+    >
 
       {/* ── MAIN BUTTON ────────────────────────────────────────────────── */}
       {!isDownloading && (
