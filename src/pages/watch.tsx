@@ -6,7 +6,6 @@ import {
   Search, List, Grid3X3, Image as ImageIcon, Play,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
-import { getImdbIdByTitle } from "@/lib/omdb";
 import { fetchAnimeDetails } from "@/lib/anilist";
 import DownloadButton from "@/components/DownloadButton";
 import { fetchJikanEpisodes } from "@/lib/jikan";
@@ -203,13 +202,12 @@ async function fetchEpisodeStreamUrl(anilistId: string, episode: number): Promis
   }
 }
 
-// Quality/source labels — proxy first, then megaplay sub/dub, then vidwish backup
-const QUALITY_LABELS = ["Proxy HD", "Sub", "Dub", "Backup"];
+// Anime sources — megaplay sub/dub + vidwish backup (proxy is movies-only)
+const QUALITY_LABELS = ["Sub", "Dub", "Backup"];
 
 function IFramePlayer({
   anilistId,
   episodeNumber,
-  animeTitle,
   onPrev,
   onNext,
   hasPrev,
@@ -220,7 +218,6 @@ function IFramePlayer({
 }: {
   anilistId: string;
   episodeNumber: number;
-  animeTitle: string;
   onPrev: () => void;
   onNext: () => void;
   hasPrev: boolean;
@@ -231,67 +228,21 @@ function IFramePlayer({
 }) {
   const [loading, setLoading] = useState(true);
   const [sourceIdx, setSourceIdx] = useState(0);
-  const [imdbId, setImdbId] = useState<string | null>(null);
-  const [omdbLoading, setOmdbLoading] = useState(true);
-  const [proxyFailed, setProxyFailed] = useState(false);
-  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeKey = useRef(0);
 
-  // Look up IMDB ID from OMDB when the anime title is available
-  useEffect(() => {
-    if (!animeTitle) return;
-    setOmdbLoading(true);
-    setProxyFailed(false);
-    setImdbId(null);
-
-    getImdbIdByTitle(animeTitle).then((id) => {
-      setImdbId(id);
-      setOmdbLoading(false);
-    });
-  }, [animeTitle]);
-
-  // Reset when episode changes
+  // Reset player when episode changes
   useEffect(() => {
     setLoading(true);
-    setProxyFailed(false);
-    // If proxy is currently selected, stay on it; otherwise stay on current source
-    // Don't reset to 0 if user manually switched away from proxy
-    if (sourceIdx === 0) {
-      iframeKey.current += 1;
-    }
+    iframeKey.current += 1;
   }, [episodeNumber]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-fallback: if proxy iframe doesn't load within 8s, switch to megaplay sub
-  useEffect(() => {
-    if (sourceIdx !== 0 || !loading) return;
-    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-
-    fallbackTimerRef.current = setTimeout(() => {
-      if (loading && sourceIdx === 0) {
-        setProxyFailed(true);
-        setSourceIdx(1); // fall back to Sub
-        setLoading(true);
-        iframeKey.current += 1;
-      }
-    }, 8000);
-
-    return () => {
-      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-    };
-  }, [sourceIdx, loading]);
 
   function buildSrc(idx: number): string {
     switch (idx) {
       case 0:
-        // Proxy HD — only usable when we have an IMDB ID
-        return imdbId
-          ? `https://proxy.garageband.rocks/embed/tv/${imdbId}?autonext=1`
-          : `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`; // fallback if no imdb id
-      case 1:
         return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`;
-      case 2:
+      case 1:
         return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/dub`;
-      case 3:
+      case 2:
         return `https://vidwish.live/stream/ani/${anilistId}/${episodeNumber}/sub`;
       default:
         return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`;
@@ -299,10 +250,8 @@ function IFramePlayer({
   }
 
   function switchSource(idx: number) {
-    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
     setSourceIdx(idx);
     setLoading(true);
-    setProxyFailed(false);
     iframeKey.current += 1;
   }
 
@@ -311,27 +260,19 @@ function IFramePlayer({
   return (
     <div className="space-y-2">
       <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-border">
-        {(loading || omdbLoading) && (
+        {loading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 gap-2">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            {omdbLoading && (
-              <p className="text-xs text-muted-foreground">Looking up stream source…</p>
-            )}
           </div>
         )}
-        {!omdbLoading && (
-          <iframe
-            key={`${anilistId}-${episodeNumber}-${sourceIdx}-${iframeKey.current}`}
-            src={iframeSrc}
-            className="w-full h-full"
-            allowFullScreen
-            allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-            onLoad={() => {
-              setLoading(false);
-              if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-            }}
-          />
-        )}
+        <iframe
+          key={`${anilistId}-${episodeNumber}-${sourceIdx}-${iframeKey.current}`}
+          src={iframeSrc}
+          className="w-full h-full"
+          allowFullScreen
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          onLoad={() => setLoading(false)}
+        />
       </div>
 
       {/* Quality auto-switches in background — no visible controls needed */}
@@ -490,7 +431,6 @@ export default function WatchPage() {
             <IFramePlayer
               anilistId={id}
               episodeNumber={currentEp}
-              animeTitle={animeTitle}
               onPrev={handlePrev}
               onNext={handleNext}
               hasPrev={hasPrev}
