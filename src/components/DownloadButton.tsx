@@ -124,7 +124,7 @@ export default function DownloadButton({ hlsUrl = "", hlsUrlFetcher, filename, c
 
       if (qualities.length <= 1) {
         // Only one quality — start immediately
-        beginDownload(qualities[0] ?? { label: "Auto", url: hlsUrl, bandwidth: 0 });
+        beginDownload(qualities[0] ?? { label: "Auto", url: resolvedUrl, bandwidth: 0 });
       } else {
         setStatus({ kind: "picking", qualities });
       }
@@ -215,7 +215,7 @@ export default function DownloadButton({ hlsUrl = "", hlsUrlFetcher, filename, c
                   ? "bg-muted border-border text-muted-foreground cursor-wait opacity-70"
                   : "bg-muted border-border text-foreground hover:bg-accent/10 hover:border-accent/40 hover:text-accent cursor-pointer"
             }
-            ${(!hlsUrl) ? "opacity-40 pointer-events-none" : ""}
+            ${(!hlsUrl && !hlsUrlFetcher) ? "opacity-40 pointer-events-none" : ""}
           `}
         >
           {/* Icon */}
