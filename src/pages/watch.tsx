@@ -9,6 +9,7 @@ import { apiUrl } from "@/lib/api";
 import { fetchAnimeDetails } from "@/lib/anilist";
 import DownloadButton from "@/components/DownloadButton";
 import { fetchJikanEpisodes } from "@/lib/jikan";
+import { resolveStreamUrl } from "@/lib/stream-resolver";
 
 interface WikiDetail {
   id: number;
@@ -176,7 +177,7 @@ function EpisodeList({
                 {ep.filler && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">F</span>}
               </button>
               <DownloadButton
-                hlsUrlFetcher={() => fetchEpisodeStreamUrl(animeId, ep.number)}
+                hlsUrlFetcher={() => resolveStreamUrl(animeId, ep.number)}
                 filename={`${animeTitle} - EP ${ep.number}`}
                 className="shrink-0"
               />
@@ -191,16 +192,7 @@ function EpisodeList({
   );
 }
 
-async function fetchEpisodeStreamUrl(anilistId: string, episode: number): Promise<string> {
-  try {
-    const res = await fetch(apiUrl(`/api/anime/stream/${anilistId}/${episode}`));
-    if (!res.ok) return "";
-    const data = await res.json();
-    return data.url ?? data.hlsUrl ?? data.streamUrl ?? "";
-  } catch {
-    return "";
-  }
-}
+// resolveStreamUrl (from stream-resolver.ts) is used directly in JSX below.
 
 // Anime sources — megaplay sub/dub + vidwish backup (proxy is movies-only)
 const QUALITY_LABELS = ["Sub", "Dub", "Backup"];
@@ -303,18 +295,6 @@ export default function WatchPage() {
       .filter((r) => (r.relationType === "SEQUEL" || r.relationType === "PREQUEL") && r.format === "TV")
       .sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
   }, [anime?.relations]);
-
-  const { data: streamUrl = "" } = useQuery<string>({
-    queryKey: ["stream-url", id, currentEp],
-    queryFn: async () => {
-      const res = await fetch(apiUrl(`/api/anime/stream/${id}/${currentEp}`));
-      if (!res.ok) return "";
-      const data = await res.json();
-      return data.url ?? data.hlsUrl ?? data.streamUrl ?? "";
-    },
-    enabled: !!id && !!currentEp,
-    staleTime: 10 * 60 * 1000,
-  });
 
   const { data: fetchedEpisodes = [], isLoading: episodesLoading } = useQuery<Episode[]>({
     queryKey: ["episodes", anime?.id],
@@ -496,7 +476,7 @@ export default function WatchPage() {
                   <ChevronLeft className="w-3.5 h-3.5" /> Details
                 </Link>
                 <DownloadButton
-                  hlsUrl={streamUrl}
+                  hlsUrlFetcher={() => resolveStreamUrl(id, currentEp)}
                   filename={`${animeTitle} - EP ${currentEp}`}
                 />
               </div>
