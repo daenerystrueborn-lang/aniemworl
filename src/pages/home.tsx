@@ -435,8 +435,11 @@ export default function HomePage() {
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pb-20 space-y-8 sm:space-y-12">
 
+        {/* ── Ad: below Hero ── */}
+        <FadeIn className="mt-6 sm:mt-8"><NativeBannerAd /></FadeIn>
+
         {/* ── Continue Watching ── */}
-        <FadeIn className="mt-6 sm:mt-8">
+        <FadeIn>
           <ContinueWatching />
         </FadeIn>
 
@@ -505,6 +508,9 @@ export default function HomePage() {
         <FadeIn delay={60}>
           <AiringSchedule />
         </FadeIn>
+
+        {/* ── Ad: after Airing Schedule ── */}
+        <FadeIn delay={40}><NativeBannerAd /></FadeIn>
 
         {/* ── Native Banner Ad above Browse by Genre ── */}
         <FadeIn delay={50}><NativeBannerAd /></FadeIn>
