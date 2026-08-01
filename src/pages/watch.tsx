@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { fetchAnimeDetails } from "@/lib/anilist";
-import DownloadButton from "@/components/DownloadButton";
 import { fetchJikanEpisodes } from "@/lib/jikan";
 import { resolveStreamUrl } from "@/lib/stream-resolver";
 
@@ -176,11 +175,6 @@ function EpisodeList({
                 <span className="text-xs truncate flex-1">{ep.title}</span>
                 {ep.filler && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">F</span>}
               </button>
-              <DownloadButton
-                hlsUrlFetcher={() => resolveStreamUrl(animeId, ep.number)}
-                filename={`${animeTitle} - EP ${ep.number}`}
-                className="shrink-0"
-              />
             </div>
           );
         })}
@@ -475,10 +469,6 @@ export default function WatchPage() {
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Details
                 </Link>
-                <DownloadButton
-                  hlsUrlFetcher={() => resolveStreamUrl(id, currentEp)}
-                  filename={`${animeTitle} - EP ${currentEp}`}
-                />
               </div>
             </div>
 

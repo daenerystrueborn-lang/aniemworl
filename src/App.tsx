@@ -16,9 +16,12 @@ import WatchPage from "@/pages/watch";
 import OAuthCallbackPage from "@/pages/oauth";
 import AnimePage from "@/pages/anime";
 import MoviesPage from "@/pages/movies";
+import PremiumPage from "@/pages/premium";
 import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/lib/auth-context";
+import { PremiumProvider } from "@/lib/premium-context";
 import WhatsAppPopup from "@/components/WhatsAppPopup";
+import Popunder from "@/components/Popunder";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +44,7 @@ function RouterInner() {
         <Route path="/oauth" component={OAuthCallbackPage} />
         <Route path="/wiki/:id" component={WikiDetailPage} />
         <Route path="/wiki" component={WikiPage} />
+        <Route path="/premium" component={PremiumPage} />
         <Route component={NotFound} />
       </Switch>
       {!isFrontPage && <Footer />}
@@ -53,12 +57,15 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <SplashScreen />
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <RouterInner />
-          </WouterRouter>
-          <WhatsAppPopup />
-          <Toaster />
+          <PremiumProvider>
+            <SplashScreen />
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <RouterInner />
+            </WouterRouter>
+            <WhatsAppPopup />
+            <Popunder />
+            <Toaster />
+          </PremiumProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

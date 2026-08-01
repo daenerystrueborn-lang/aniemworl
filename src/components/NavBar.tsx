@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Menu, X, Star, LogIn, LogOut, User } from "lucide-react";
+import { Search, Menu, X, Star, LogIn, LogOut, User, Crown } from "lucide-react";
 import { searchAnime } from "../lib/anilist";
 import { useAuth } from "../lib/auth-context";
 
@@ -251,6 +251,17 @@ export default function NavBar() {
               {link.label}
             </Link>
           ))}
+          {/* Premium link */}
+          <Link
+            href="/premium"
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              location === "/premium"
+                ? "text-yellow-400 bg-yellow-400/10"
+                : "text-yellow-400/70 hover:text-yellow-400 hover:bg-yellow-400/10"
+            }`}
+          >
+            <Crown className="w-3.5 h-3.5" /> Premium
+          </Link>
         </nav>
 
         {/* Desktop search */}
@@ -319,6 +330,14 @@ export default function NavBar() {
                 {link.label}
               </Link>
             ))}
+            {/* Premium — mobile */}
+            <Link
+              href="/premium"
+              onClick={() => setMobileOpen(false)}
+              className="px-3 py-2.5 rounded text-sm font-medium flex items-center gap-2 text-yellow-400/80 hover:text-yellow-400 hover:bg-yellow-400/10 transition-colors"
+            >
+              <Crown className="w-3.5 h-3.5" /> Premium
+            </Link>
             <Link
               href="/profile"
               onClick={() => setMobileOpen(false)}

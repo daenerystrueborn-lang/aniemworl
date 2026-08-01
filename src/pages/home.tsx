@@ -8,6 +8,7 @@ import {
 import { fetchTrending as fetchTrendingAniList } from "../lib/anilist";
 import AiringSchedule from "@/components/AiringSchedule";
 import ContinueWatching from "@/components/ContinueWatching";
+import NativeBannerAd from "@/components/NativeBannerAd";
 
 const CATEGORIES = ["Anime", "Manhwa", "Movies", "Novels"] as const;
 type Category = typeof CATEGORIES[number];
@@ -292,15 +293,6 @@ function MediaRow({ title, href, items, loading, isRead, icon }: {
   );
 }
 
-/* ─── Ad Slot ─── */
-function AdSlot() {
-  return (
-    <div className="w-full h-[60px] sm:h-[70px] rounded-2xl border border-dashed border-border bg-muted/20 flex items-center justify-center text-[10px] text-muted-foreground/40 font-medium tracking-widest uppercase select-none">
-      Advertisement
-    </div>
-  );
-}
-
 /* ─── Explore Banner ─── */
 function ExploreBanner() {
   return (
@@ -460,7 +452,7 @@ export default function HomePage() {
           />
         </FadeIn>
 
-        <FadeIn delay={50}><AdSlot /></FadeIn>
+        <FadeIn delay={50}><NativeBannerAd /></FadeIn>
 
         {/* ── Category Tabs ── */}
         <FadeIn delay={80}>
@@ -495,7 +487,7 @@ export default function HomePage() {
           </section>
         </FadeIn>
 
-        <FadeIn delay={60}><AdSlot /></FadeIn>
+        <FadeIn delay={60}><NativeBannerAd /></FadeIn>
 
         {/* ── Popular Movies Row ── */}
         <FadeIn delay={80}>
@@ -514,7 +506,8 @@ export default function HomePage() {
           <AiringSchedule />
         </FadeIn>
 
-        <FadeIn delay={50}><AdSlot /></FadeIn>
+        {/* ── Native Banner Ad above Browse by Genre ── */}
+        <FadeIn delay={50}><NativeBannerAd /></FadeIn>
 
         {/* ── Browse by Genre ── */}
         <FadeIn delay={70}>
