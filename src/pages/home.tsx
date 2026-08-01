@@ -436,7 +436,7 @@ export default function HomePage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pb-20 space-y-8 sm:space-y-12">
 
         {/* ── Ad: below Hero ── */}
-        <FadeIn className="mt-6 sm:mt-8"><NativeBannerAd /></FadeIn>
+        <FadeIn className="mt-6 sm:mt-8"><NativeBannerAd size="large" /></FadeIn>
 
         {/* ── Continue Watching ── */}
         <FadeIn>
@@ -455,7 +455,7 @@ export default function HomePage() {
           />
         </FadeIn>
 
-        <FadeIn delay={50}><NativeBannerAd /></FadeIn>
+        <FadeIn delay={50}><NativeBannerAd size="medium" /></FadeIn>
 
         {/* ── Category Tabs ── */}
         <FadeIn delay={80}>
@@ -490,7 +490,7 @@ export default function HomePage() {
           </section>
         </FadeIn>
 
-        <FadeIn delay={60}><NativeBannerAd /></FadeIn>
+        <FadeIn delay={60}><NativeBannerAd size="large" /></FadeIn>
 
         {/* ── Popular Movies Row ── */}
         <FadeIn delay={80}>
@@ -510,10 +510,10 @@ export default function HomePage() {
         </FadeIn>
 
         {/* ── Ad: after Airing Schedule ── */}
-        <FadeIn delay={40}><NativeBannerAd /></FadeIn>
+        <FadeIn delay={40}><NativeBannerAd size="small" /></FadeIn>
 
-        {/* ── Native Banner Ad above Browse by Genre ── */}
-        <FadeIn delay={50}><NativeBannerAd /></FadeIn>
+        {/* ── Ad: above Browse by Genre ── */}
+        <FadeIn delay={50}><NativeBannerAd size="large" /></FadeIn>
 
         {/* ── Browse by Genre ── */}
         <FadeIn delay={70}>
