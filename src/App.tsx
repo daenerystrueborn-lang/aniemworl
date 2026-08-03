@@ -21,7 +21,6 @@ import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/lib/auth-context";
 import { PremiumProvider } from "@/lib/premium-context";
 import WhatsAppPopup from "@/components/WhatsAppPopup";
-import Popunder from "@/components/Popunder";
 
 const queryClient = new QueryClient();
 
@@ -63,7 +62,6 @@ function App() {
               <RouterInner />
             </WouterRouter>
             <WhatsAppPopup />
-            <Popunder />
             <Toaster />
           </PremiumProvider>
         </AuthProvider>
