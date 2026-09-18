@@ -23,7 +23,7 @@ function InlinePlayer({ movie, onClose }: { movie: OmdbMovie; onClose: () => voi
   return (
     <div
       ref={playerRef}
-      className="w-full bg-[hsl(0_0%_4%)] border-b border-border"
+      className="w-full bg-[hsl(0_0%_0%)] border-b border-border"
       style={{
         animation: "slideDown 0.35s cubic-bezier(0.4,0,0.2,1)",
       }}

@@ -2,13 +2,12 @@ import { Link } from "wouter";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-border bg-[hsl(0_0%_3%)] mt-auto">
+    <footer className="border-t border-border bg-[hsl(0_0%_0%)] shadow-[0_-1px_0_0_hsl(353_90%_50%/0.08)] mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-6">
           {/* Brand */}
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Animeastral" className="w-7 h-7 rounded object-cover" />
-            <span className="font-bold text-foreground tracking-tight">Animeastral</span>
+          <div className="flex items-center">
+            <img src="/logo.png" alt="Animeastral" className="w-9 h-9 rounded-lg object-cover" />
           </div>
 
           {/* Quick nav */}

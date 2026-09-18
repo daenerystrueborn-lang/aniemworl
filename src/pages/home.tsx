@@ -103,86 +103,86 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
 const GenreIcons: Record<string, React.ReactNode> = {
   Action: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.5 2.5L9 8l-4.5 1 1 4.5L10 18l1.5-1.5" stroke="#f87171" />
-      <path d="M2.5 21.5l5-5" stroke="#f87171" />
-      <path d="M21.5 2.5l-6 6" stroke="#fb923c" />
-      <path d="M15.5 8.5l-7 7" stroke="#fbbf24" />
+      <path d="M14.5 2.5L9 8l-4.5 1 1 4.5L10 18l1.5-1.5" stroke="#f7304a" />
+      <path d="M2.5 21.5l5-5" stroke="#f7304a" />
+      <path d="M21.5 2.5l-6 6" stroke="#ff5c70" />
+      <path d="M15.5 8.5l-7 7" stroke="#ff5c70" />
     </svg>
   ),
   Fantasy: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z" fill="#a78bfa" stroke="#a78bfa" />
-      <path d="M5 18c0-2 1-3 2-4" stroke="#c4b5fd" />
-      <path d="M19 18c0-2-1-3-2-4" stroke="#c4b5fd" />
-      <path d="M8 21h8" stroke="#a78bfa" />
+      <path d="M12 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z" fill="#f7304a" stroke="#f7304a" />
+      <path d="M5 18c0-2 1-3 2-4" stroke="#ff5c70" />
+      <path d="M19 18c0-2-1-3-2-4" stroke="#ff5c70" />
+      <path d="M8 21h8" stroke="#f7304a" />
     </svg>
   ),
   Romance: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
-      <path d="M12 21s-6.7-4.35-9.5-8.1C.8 10.4 1 7.2 3.4 5.4c2.1-1.6 4.9-1.1 6.4.9L12 8.4l2.2-2.1c1.5-2 4.3-2.5 6.4-.9 2.4 1.8 2.6 5 .9 7.5C18.7 16.65 12 21 12 21z" fill="#fb7185" />
+      <path d="M12 21s-6.7-4.35-9.5-8.1C.8 10.4 1 7.2 3.4 5.4c2.1-1.6 4.9-1.1 6.4.9L12 8.4l2.2-2.1c1.5-2 4.3-2.5 6.4-.9 2.4 1.8 2.6 5 .9 7.5C18.7 16.65 12 21 12 21z" fill="#f7304a" />
     </svg>
   ),
   Horror: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="12" cy="9" r="6" stroke="#94a3b8" />
-      <path d="M9 9h.01M15 9h.01" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
-      <path d="M9 21v-3l1.5-1.5L12 18l1.5-1.5L15 18v3" stroke="#94a3b8" />
+      <circle cx="12" cy="9" r="6" stroke="#f7304a" />
+      <path d="M9 9h.01M15 9h.01" stroke="#f7304a" strokeWidth="2" strokeLinecap="round" />
+      <path d="M9 21v-3l1.5-1.5L12 18l1.5-1.5L15 18v3" stroke="#f7304a" />
     </svg>
   ),
   "Sci-Fi": (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
-      <path d="M12 2L8 8H4l4 4-1 6 5-3 5 3-1-6 4-4h-4z" fill="#38bdf8" stroke="#38bdf8" />
+      <path d="M12 2L8 8H4l4 4-1 6 5-3 5 3-1-6 4-4h-4z" fill="#f7304a" stroke="#f7304a" />
     </svg>
   ),
   Mystery: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="10" cy="10" r="7" stroke="#fbbf24" />
-      <path d="M15.5 15.5l5 5" stroke="#fbbf24" strokeWidth="2" />
-      <path d="M10 7v3M10 13v.5" stroke="#fcd34d" strokeWidth="2" />
+      <circle cx="10" cy="10" r="7" stroke="#ff5c70" />
+      <path d="M15.5 15.5l5 5" stroke="#ff5c70" strokeWidth="2" />
+      <path d="M10 7v3M10 13v.5" stroke="#ff5c70" strokeWidth="2" />
     </svg>
   ),
   "Slice of Life": (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <path d="M6 3v10a6 6 0 0 0 12 0V3" stroke="#86efac" />
-      <path d="M4 3h16" stroke="#86efac" strokeWidth="2" />
-      <path d="M12 13v5M9 21h6" stroke="#4ade80" />
+      <path d="M6 3v10a6 6 0 0 0 12 0V3" stroke="#ff5c70" />
+      <path d="M4 3h16" stroke="#ff5c70" strokeWidth="2" />
+      <path d="M12 13v5M9 21h6" stroke="#f7304a" />
     </svg>
   ),
   Sports: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
-      <circle cx="12" cy="12" r="9" fill="none" stroke="#34d399" strokeWidth="1.5" />
-      <path d="M12 3v18M3 12h18M5.64 5.64l12.72 12.72M18.36 5.64L5.64 18.36" stroke="#34d399" strokeWidth="0.8" />
+      <circle cx="12" cy="12" r="9" fill="none" stroke="#f7304a" strokeWidth="1.5" />
+      <path d="M12 3v18M3 12h18M5.64 5.64l12.72 12.72M18.36 5.64L5.64 18.36" stroke="#f7304a" strokeWidth="0.8" />
     </svg>
   ),
   Historical: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <rect x="3" y="12" width="4" height="9" fill="#d97706" stroke="#d97706" />
-      <rect x="10" y="8" width="4" height="13" fill="#f59e0b" stroke="#f59e0b" />
-      <rect x="17" y="4" width="4" height="17" fill="#d97706" stroke="#d97706" />
-      <path d="M1 21h22" stroke="#fbbf24" strokeWidth="1.5" />
+      <rect x="3" y="12" width="4" height="9" fill="#a10f22" stroke="#a10f22" />
+      <rect x="10" y="8" width="4" height="13" fill="#f7304a" stroke="#f7304a" />
+      <rect x="17" y="4" width="4" height="17" fill="#a10f22" stroke="#a10f22" />
+      <path d="M1 21h22" stroke="#ff5c70" strokeWidth="1.5" />
     </svg>
   ),
   Psychological: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-      <path d="M12 3C7.5 3 4 6.5 4 11c0 2.8 1.4 5.2 3.5 6.7V20h9v-2.3C18.6 16.2 20 13.8 20 11c0-4.5-3.5-8-8-8z" stroke="#e879f9" fill="#e879f9" fillOpacity="0.15" />
-      <path d="M9 11c0-1.7 1.3-3 3-3M12 8v1M8 11h1M15 11h1M12 15v-1" stroke="#f0abfc" />
+      <path d="M12 3C7.5 3 4 6.5 4 11c0 2.8 1.4 5.2 3.5 6.7V20h9v-2.3C18.6 16.2 20 13.8 20 11c0-4.5-3.5-8-8-8z" stroke="#f7304a" fill="#f7304a" fillOpacity="0.15" />
+      <path d="M9 11c0-1.7 1.3-3 3-3M12 8v1M8 11h1M15 11h1M12 15v-1" stroke="#ff5c70" />
     </svg>
   ),
   Mecha: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <rect x="7" y="2" width="10" height="8" rx="1" fill="#60a5fa" stroke="#60a5fa" fillOpacity="0.3" />
-      <rect x="5" y="10" width="14" height="8" rx="1" fill="#3b82f6" stroke="#3b82f6" fillOpacity="0.3" />
-      <path d="M9 18v4M15 18v4M5 12H2M19 12h3" stroke="#93c5fd" />
-      <circle cx="9" cy="6" r="1" fill="#93c5fd" />
-      <circle cx="15" cy="6" r="1" fill="#93c5fd" />
+      <rect x="7" y="2" width="10" height="8" rx="1" fill="#f7304a" stroke="#f7304a" fillOpacity="0.3" />
+      <rect x="5" y="10" width="14" height="8" rx="1" fill="#a10f22" stroke="#a10f22" fillOpacity="0.3" />
+      <path d="M9 18v4M15 18v4M5 12H2M19 12h3" stroke="#ff5c70" />
+      <circle cx="9" cy="6" r="1" fill="#ff5c70" />
+      <circle cx="15" cy="6" r="1" fill="#ff5c70" />
     </svg>
   ),
   Isekai: (
     <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
-      <circle cx="12" cy="12" r="9" fill="none" stroke="#818cf8" strokeWidth="1.5" />
-      <ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="#a5b4fc" strokeWidth="1" />
-      <ellipse cx="12" cy="12" rx="9" ry="4" fill="none" stroke="#a5b4fc" strokeWidth="1" />
-      <circle cx="12" cy="12" r="2" fill="#818cf8" />
+      <circle cx="12" cy="12" r="9" fill="none" stroke="#f7304a" strokeWidth="1.5" />
+      <ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="#ff5c70" strokeWidth="1" />
+      <ellipse cx="12" cy="12" rx="9" ry="4" fill="none" stroke="#ff5c70" strokeWidth="1" />
+      <circle cx="12" cy="12" r="2" fill="#f7304a" />
     </svg>
   ),
 };
@@ -213,7 +213,7 @@ function Top10Card({ item, rank }: { item: AnimeItem; rank: number }) {
           )}
           <div
             className="absolute bottom-0 left-0 text-[56px] sm:text-[64px] font-black leading-none select-none pointer-events-none"
-            style={{ color: "transparent", WebkitTextStroke: "2px hsl(0 0% 28%)", lineHeight: 1, transform: "translateX(-4px) translateY(12px)" }}
+            style={{ color: "transparent", WebkitTextStroke: "2px hsl(353 70% 45%)", lineHeight: 1, transform: "translateX(-4px) translateY(12px)" }}
           >
             {rank}
           </div>
@@ -243,8 +243,8 @@ function MediaCard({ item, isRead, delay = 0 }: { item: AnimeItem; isRead: boole
             </div>
           )}
           {item.score && (
-            <div className="absolute top-1.5 left-1.5 flex items-center gap-0.5 bg-black/75 text-yellow-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              <Star className="w-2.5 h-2.5 fill-yellow-400" />{(item.score / 10).toFixed(1)}
+            <div className="absolute top-1.5 left-1.5 flex items-center gap-0.5 bg-black/80 backdrop-blur-sm border border-accent/30 text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              <Star className="w-2.5 h-2.5 fill-accent" />{(item.score / 10).toFixed(1)}
             </div>
           )}
           {item.format && (
@@ -379,6 +379,10 @@ export default function HomePage() {
             style={{ backgroundImage: hero.banner ? `url(${hero.banner})` : `url(${hero.cover})` }} />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: "radial-gradient(ellipse at 15% 85%, hsl(353 90% 45% / 0.22) 0%, transparent 55%)" }}
+          />
 
           {heroItems.length > 1 && (
             <div className="absolute bottom-4 sm:bottom-6 right-4 sm:right-6 flex items-center gap-2 sm:gap-3 z-20">
@@ -419,9 +423,9 @@ export default function HomePage() {
               </div>
               <div className="flex items-center gap-2 sm:gap-3">
                 <Link href={isRead ? `/wiki/${hero.id}` : `/watch/${hero.id}`}
-                  className="inline-flex items-center gap-1.5 sm:gap-2 bg-foreground text-background px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold hover:bg-foreground/90 hover:scale-105 active:scale-95 transition-all shadow-lg">
+                  className="inline-flex items-center gap-1.5 sm:gap-2 bg-accent text-accent-foreground px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold hover:bg-accent/90 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/30">
                   {isRead ? <><BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Read Now</>
-                    : <><Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-background" /> Watch Now</>}
+                    : <><Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-accent-foreground" /> Watch Now</>}
                 </Link>
                 <Link href={`/wiki/${hero.id}`}
                   className="inline-flex items-center gap-1.5 sm:gap-2 bg-muted/80 backdrop-blur-sm border border-border text-foreground px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold hover:bg-muted hover:scale-105 active:scale-95 transition-all">
@@ -451,7 +455,7 @@ export default function HomePage() {
             items={airingData ?? []}
             loading={airingLoading}
             isRead={false}
-            icon={<span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-sm shadow-red-500/50" />}
+            icon={<span className="inline-block w-2 h-2 rounded-full bg-accent animate-pulse shadow-sm shadow-accent/50" />}
           />
         </FadeIn>
 

@@ -91,7 +91,7 @@ function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
           value={query}
           onChange={(e) => handleChange(e.target.value)}
           onFocus={() => { if (suggestions.length) setOpen(true); }}
-          className="w-full bg-muted border border-border rounded pl-8 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/60"
+          className="w-full bg-white/5 border border-border rounded-lg pl-8 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground transition-all focus:outline-none focus:border-accent/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-accent/20"
         />
       </form>
 
@@ -228,12 +228,15 @@ export default function NavBar() {
   const avatar = customPfp || user?.avatar || null;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-[hsl(0_0%_4%/0.95)] backdrop-blur-md border-b border-border">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-[hsl(0_0%_0%/0.92)] backdrop-blur-md border-b border-border shadow-[0_1px_0_0_hsl(353_90%_50%/0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0 mr-2">
-          <img src="/logo.png" alt="Animeastral" className="w-7 h-7 rounded object-cover" />
-          <span className="font-bold text-foreground tracking-tight text-base hidden sm:block">Animeastral</span>
+        <Link href="/" className="flex items-center shrink-0 mr-2 group">
+          <img
+            src="/logo.png"
+            alt="Animeastral"
+            className="w-9 h-9 rounded-lg object-cover transition-transform duration-300 ease-out group-hover:scale-110 group-hover:brand-glow"
+          />
         </Link>
 
         {/* Desktop nav */}
@@ -242,10 +245,10 @@ export default function NavBar() {
             <Link
               key={link.href}
               href={link.href}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                 location === link.href
-                  ? "text-foreground bg-muted"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  ? "text-accent bg-accent/10 border border-accent/25"
+                  : "text-muted-foreground border border-transparent hover:text-foreground hover:bg-white/5"
               }`}
             >
               {link.label}
@@ -314,17 +317,17 @@ export default function NavBar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-border bg-[hsl(0_0%_4%/0.98)]">
+        <div className="md:hidden border-t border-border bg-[hsl(0_0%_0%/0.98)]">
           <nav className="flex flex-col px-4 py-3 gap-1">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileOpen(false)}
-                className={`px-3 py-2.5 rounded text-sm font-medium transition-colors ${
+                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   location === link.href
-                    ? "text-foreground bg-muted"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    ? "text-accent bg-accent/10 border border-accent/25"
+                    : "text-muted-foreground border border-transparent hover:text-foreground hover:bg-white/5"
                 }`}
               >
                 {link.label}
