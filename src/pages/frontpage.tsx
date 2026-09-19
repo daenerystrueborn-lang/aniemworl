@@ -35,14 +35,11 @@ export default function FrontPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* ── Minimal top bar ── */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[hsl(0_0%_0%/0.92)] backdrop-blur-md border-b border-border shadow-[0_1px_0_0_hsl(353_90%_50%/0.08)]">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-[hsl(0_0%_4%/0.95)] backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center group">
-            <img
-              src="/logo.png"
-              alt="Animeastral"
-              className="w-9 h-9 rounded-lg object-cover transition-transform duration-300 ease-out group-hover:scale-110 group-hover:brand-glow"
-            />
+          <Link href="/" className="flex items-center gap-2">
+            <img src="/logo.png" alt="Animeastral" className="w-7 h-7 rounded object-cover" />
+            <span className="font-bold text-foreground tracking-tight text-base">Animeastral</span>
           </Link>
           <Link
             href="/home"
@@ -84,11 +81,11 @@ export default function FrontPage() {
         <div className="relative z-10 flex flex-col items-center text-center px-4 sm:px-6 max-w-4xl mx-auto">
           {/* Logo mark */}
           <div className="relative mb-6">
-            <div className="absolute inset-0 blur-3xl bg-accent/40 rounded-full scale-150 animate-pulse" style={{ animationDuration: "3s" }} />
+            <div className="absolute inset-0 blur-2xl bg-accent/30 rounded-full scale-150" />
             <img
               src="/logo.png"
               alt="Animeastral"
-              className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-3xl object-cover border-2 border-accent/40 shadow-2xl"
+              className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-accent/40 shadow-2xl"
             />
           </div>
 
@@ -112,7 +109,10 @@ export default function FrontPage() {
             <Tv className="w-3 h-3" /> Watch Anime Online for FREE
           </div>
 
-          <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-xl mb-3 leading-relaxed mt-2">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-foreground leading-tight mb-4 tracking-tight">
+            Animeastral
+          </h1>
+          <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-xl mb-3 leading-relaxed">
             Your free gateway to thousands of anime, movies, and more — streamed instantly, no subscription required.
           </p>
           <p className="text-sm text-accent/80 font-medium italic mb-8">
@@ -261,10 +261,11 @@ export default function FrontPage() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-border mt-auto shadow-[0_-1px_0_0_hsl(353_90%_50%/0.08)]">
+      <footer className="border-t border-border mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-          <div className="flex items-center">
-            <img src="/logo.png" alt="Animeastral" className="w-8 h-8 rounded-lg object-cover" />
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="Animeastral" className="w-6 h-6 rounded object-cover" />
+            <span className="text-sm font-bold text-foreground">Animeastral</span>
           </div>
           <p className="text-[11px] text-muted-foreground/60 max-w-md leading-relaxed">
             We do not own the anime rights. All content comes from third-party sources. For entertainment use only.
