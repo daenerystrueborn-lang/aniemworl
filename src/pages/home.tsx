@@ -218,7 +218,7 @@ function Top10Card({ item, rank }: { item: AnimeItem; rank: number }) {
             {rank}
           </div>
           <div className="absolute top-1.5 right-1.5 bg-accent text-accent-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-            {item.score ? (item.score / 10).toFixed(1) : "—"}
+            {item.score ? (item.score / 10).toFixed(1) : "N/A"}
           </div>
         </div>
         <p className="text-xs text-foreground font-medium mt-1.5 truncate">{item.title}</p>
@@ -304,7 +304,7 @@ function ExploreBanner() {
           <span className="text-accent text-xs font-semibold uppercase tracking-widest">Anime Library</span>
         </div>
         <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-1.5">Browse all anime</h3>
-        <p className="text-sm text-muted-foreground">Search, filter by genre, find airing shows and classic movies — all in one place.</p>
+        <p className="text-sm text-muted-foreground">Search, filter by genre, find airing shows and classic movies, all in one place.</p>
       </div>
       <Link href="/anime" className="relative shrink-0 inline-flex items-center gap-2 px-6 py-3 bg-accent text-accent-foreground rounded-xl font-semibold text-sm hover:bg-accent/90 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-accent/25">
         Explore Anime <ArrowRight className="w-4 h-4" />

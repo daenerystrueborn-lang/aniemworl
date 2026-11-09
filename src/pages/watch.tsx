@@ -452,7 +452,7 @@ export default function WatchPage() {
                     className="mt-2 text-xs bg-muted border border-border rounded px-2 py-1 text-foreground"
                   >
                     <option value={id}>
-                      {anime.format}{anime.year ? ` (${anime.year})` : ""} — current
+                      {anime.format}{anime.year ? ` (${anime.year})` : ""} - current
                     </option>
                     {seasons.map((s) => (
                       <option key={s.id} value={s.id}>

@@ -30,7 +30,7 @@ export default function Footer() {
         {/* Disclaimer */}
         <div className="border-t border-border pt-5 space-y-2">
           <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-3xl">
-            <strong className="text-muted-foreground/80">Disclaimer:</strong> Animeastral does not store, host, or own any of the anime, movies, or content shown on this site. All media is streamed from third-party providers. We do not claim ownership of any anime, characters, or intellectual property — all rights belong to their respective owners and studios. Content is provided for entertainment purposes only.
+            <strong className="text-muted-foreground/80">Disclaimer:</strong> Animeastral does not store, host, or own any of the anime, movies, or content shown on this site. All media is streamed from third-party providers. We do not claim ownership of any anime, characters, or intellectual property. All rights belong to their respective owners and studios. Content is provided for entertainment purposes only.
           </p>
           <p className="text-[10px] text-muted-foreground/40">
             © {new Date().getFullYear()} Animeastral · All content rights belong to respective owners · Third-party streams only
