@@ -1,7 +1,8 @@
+import { subtitleFiles, type SubtitleFile } from "./subtitles.ts";
 const BASE = (import.meta.env?.VITE_STREAM_API_URL || "https://app-decompiling.onrender.com").replace(/\/+$/, "");
 export interface MiruTitle { id: string; title: string }
 export interface MiruEpisode { id: string; number: number; title: string; filler: boolean }
-export interface MiruSession { proxyHlsUrl: string; proxySelectedHlsUrl: string; downloadUrl: string; variants: { label: string; height?: number }[]; selectedQuality: string }
+export interface MiruSession { proxyHlsUrl: string; proxySelectedHlsUrl: string; downloadUrl: string; variants: { label: string; height?: number }[]; selectedQuality: string; subtitles: SubtitleFile[] }
 
 export function normalizeTitle(title: string): string {
   return title.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
@@ -63,6 +64,7 @@ export async function getMiruSession(episodeId: string, track: "sub" | "dub", qu
   const data = await api(`/api/mirudl/play?${params}`, signal);
   if (typeof data.proxyHlsUrl !== "string" || typeof data.downloadUrl !== "string") throw new Error("Server 1 did not provide a playable stream.");
   return {
+    subtitles: subtitleFiles(data.subtitles, BASE),
     proxyHlsUrl: renderUrl(data.proxyHlsUrl, "/api/proxy/hls"),
     proxySelectedHlsUrl: renderUrl(typeof data.proxySelectedHlsUrl === "string" ? data.proxySelectedHlsUrl : data.proxyHlsUrl, "/api/proxy/hls"),
     downloadUrl: renderUrl(data.downloadUrl, "/api/download"),

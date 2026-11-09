@@ -3,13 +3,14 @@ import { useParams, useLocation, useSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft, ChevronRight, Loader2, AlertCircle,
-  Search, List, Grid3X3, Image as ImageIcon, Play, Download, X,
+  Search, List, Grid3X3, Image as ImageIcon, Play, Download,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { fetchAnimeDetails, searchAnimeTitles, type TitleCandidate } from "@/lib/anilist";
 import { fetchJikanEpisodes } from "@/lib/jikan";
 import EpisodeDownload from "@/components/EpisodeDownload";
 import MiruPlayer from "@/components/MiruPlayer";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { exactMiruMatch, getMiruEpisodes, searchMiruTitles, normalizeTitle, type MiruTitle } from "@/lib/mirudl";
 import { exactTitleCandidates } from "@/lib/title-matching";
 import { useEpisodeDownloads } from "@/hooks/useEpisodeDownloads";
@@ -163,8 +164,8 @@ function EpisodeList({
                 <button ref={isSelected ? selectedRef : undefined} onClick={() => onSelect(ep.number)} className="flex-1 py-1" aria-label={`Play episode ${ep.number}`}>
                   {isSelected ? <Play className="w-3 h-3 mx-auto" /> : ep.number}
                 </button>
-                <button type="button" onClick={() => onDownload(ep.number)} className="p-1" aria-label={`${downloading(ep.number) ? "Cancel download of" : "Download"} episode ${ep.number}`} title={downloading(ep.number) ? "Cancel download" : "Download episode"}>
-                  {downloading(ep.number) ? <X className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                <button type="button" onClick={() => onDownload(ep.number)} className="p-1" aria-label={`${downloading(ep.number) ? "View download of" : "Download"} episode ${ep.number}`} title={downloading(ep.number) ? "View download" : "Download episode"}>
+                  {downloading(ep.number) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
                 </button>
               </div>
             );
@@ -183,8 +184,8 @@ function EpisodeList({
                 <span className="text-xs truncate flex-1">{ep.title}</span>
                 {ep.filler && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">F</span>}
               </button>
-              <button type="button" onClick={() => onDownload(ep.number)} className="p-1 shrink-0" aria-label={`${downloading(ep.number) ? "Cancel download of" : "Download"} episode ${ep.number}`} title={downloading(ep.number) ? "Cancel download" : "Download episode"}>
-                {downloading(ep.number) ? <X className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+              <button type="button" onClick={() => onDownload(ep.number)} className="p-1 shrink-0" aria-label={`${downloading(ep.number) ? "View download of" : "Download"} episode ${ep.number}`} title={downloading(ep.number) ? "View download" : "Download episode"}>
+                {downloading(ep.number) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               </button>
             </div>
           );
@@ -266,6 +267,8 @@ export default function WatchPage() {
     } catch { return null; }
   });
   const [quality, setQuality] = useState("auto");
+  const [downloadDialogEp, setDownloadDialogEp] = useState<number | null>(null);
+  useEffect(() => { setDownloadDialogEp(null); }, [id]);
   const [titleChoice, setTitleChoice] = useState<{ provider: MiruTitle; candidates: TitleCandidate[] } | null>(null);
   const [titleChoiceError, setTitleChoiceError] = useState("");
   const [titleChoiceLoading, setTitleChoiceLoading] = useState(false);
@@ -316,8 +319,9 @@ export default function WatchPage() {
   const autoMatch = manualQuery ? null : exactMiruMatch(titles, miruMatches);
   const chosenMiru = chosenTitle?.watchId === id ? chosenTitle.title : autoMatch;
   const downloads = useEpisodeDownloads(id, anime?.title.display || "Anime", titles, chosenMiru, track, quality);
-  function toggleDownload(ep: number) {
-    if (downloads.states[ep]?.busy) downloads.cancel(ep); else void downloads.start(ep);
+  function openDownload(ep: number) {
+    setDownloadDialogEp(ep);
+    if (!downloads.states[ep]?.busy) void downloads.start(ep);
   }
   function openTitle(provider: MiruTitle, anilistId: number) {
     try { sessionStorage.setItem(`watch-title-${anilistId}`, JSON.stringify(provider)); }
@@ -446,6 +450,22 @@ export default function WatchPage() {
 
   return (
     <div className="min-h-screen bg-background pt-16 pb-10">
+      <Dialog open={downloadDialogEp !== null} onOpenChange={(open) => { if (!open) setDownloadDialogEp(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Download episode {downloadDialogEp}</DialogTitle>
+            <DialogDescription>The episode downloads in your browser. Keep this page open until it is ready to save.</DialogDescription>
+          </DialogHeader>
+          {downloadDialogEp !== null && (() => {
+            const state = downloads.states[downloadDialogEp];
+            return <div className="space-y-3 text-sm" role="status" aria-live="polite">
+              <p>{state?.busy ? state.progress ? `Downloading: ${state.progress.percent}% (${state.progress.done}/${state.progress.total} segments) · ${formatSpeed(state.progress.bytesPerSecond)}` : "Preparing download..." : state?.message || "Preparing download..."}</p>
+              {state?.busy && <><progress className="w-full h-2 accent-accent" value={state.progress?.percent || 0} max={100} /><button type="button" onClick={() => downloads.cancel(downloadDialogEp)} className="rounded-lg border border-border px-3 py-2">Cancel download</button></>}
+              <p className="text-xs text-muted-foreground">Your browser saves the file after the video finishes downloading. Separate subtitles may not be included.</p>
+            </div>;
+          })()}
+        </DialogContent>
+      </Dialog>
       <div className="max-w-[1600px] mx-auto px-3 sm:px-4">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
@@ -489,7 +509,7 @@ export default function WatchPage() {
                 )}
                 {chosenMiru && <p className="text-xs text-muted-foreground">Server 1: {chosenMiru.title} <button onClick={() => { try { sessionStorage.removeItem(`watch-title-${id}`); } catch { /* optional storage */ } setTitleChoice(null); setTitleChoiceError(""); setChosenTitle(null); setManualSearch({ watchId: id, query: chosenMiru.title }); setSearchInput(chosenMiru.title); }} className="text-accent underline ml-1">Change</button></p>}
                 {miruError && <p role="alert" className="text-xs text-red-400">Could not load Server 1 episodes. <button onClick={() => retryEpisodes()} className="underline">Retry</button></p>}
-                <MiruPlayer key={id} episodeId={currentMiru.length === 1 ? currentMiru[0].id : undefined} episodeNumber={currentEp} title={animeTitle} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} track={track} onTrackChange={setTrack} onFailure={failover} quality={quality} onQualityChange={setQuality} onDownload={() => toggleDownload(currentEp)} downloading={!!downloads.states[currentEp]?.busy} onCancelDownload={() => downloads.cancel(currentEp)} />
+                <MiruPlayer key={id} animeId={id} malId={anime.malId} titles={titles} episodeId={currentMiru.length === 1 ? currentMiru[0].id : undefined} episodeNumber={currentEp} title={animeTitle} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} track={track} onTrackChange={setTrack} onFailure={failover} quality={quality} onQualityChange={setQuality} onDownload={() => openDownload(currentEp)} downloading={!!downloads.states[currentEp]?.busy} onCancelDownload={() => setDownloadDialogEp(currentEp)} />
               </>
             ) : (
               <>
@@ -597,7 +617,7 @@ export default function WatchPage() {
                 currentEp={currentEp}
                 animeId={id}
                 onSelect={navigateToEp}
-                onDownload={toggleDownload}
+                onDownload={openDownload}
                 downloading={(ep) => !!downloads.states[ep]?.busy}
               />
             )}

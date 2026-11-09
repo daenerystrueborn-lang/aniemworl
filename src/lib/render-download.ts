@@ -1,3 +1,4 @@
+import { subtitleFiles, type SubtitleFile } from "./subtitles.ts";
 /** Resolve the selected AniList/MAL episode through the Render AniFam service. */
 const STREAM_API_URL = (import.meta.env?.VITE_STREAM_API_URL || "https://app-decompiling.onrender.com").replace(/\/+$/, "");
 
@@ -24,14 +25,14 @@ async function request(path: string, signal: AbortSignal, body?: JsonObject): Pr
 }
 
 /** IDs are verified against AniList or MAL, never inferred from a similar title. */
-export async function resolveRenderStream(options: {
+export async function resolveRenderPlayback(options: {
   animeId: string;
   malId: number | null;
   titles: string[];
   episodeNumber: number;
   track: Track;
   signal: AbortSignal;
-}): Promise<string> {
+}): Promise<{ url: string; subtitles: SubtitleFile[] }> {
   const { animeId, malId, episodeNumber, track, signal } = options;
   const queries = [...new Set(options.titles.map((name) => name.trim()).filter(Boolean))];
   if (!queries.length) throw new Error("No title is available to find this anime.");
@@ -81,5 +82,9 @@ export async function resolveRenderStream(options: {
   const base = new URL(STREAM_API_URL);
   const url = new URL(playback.proxyHlsUrl, `${base.origin}/`);
   if (url.origin !== base.origin || url.pathname !== "/api/proxy/hls") throw new Error("The server returned an invalid playlist link.");
-  return url.href;
+  return { url: url.href, subtitles: subtitleFiles(playback.subtitles, STREAM_API_URL) };
+}
+
+export async function resolveRenderStream(options: Parameters<typeof resolveRenderPlayback>[0]): Promise<string> {
+  return (await resolveRenderPlayback(options)).url;
 }
