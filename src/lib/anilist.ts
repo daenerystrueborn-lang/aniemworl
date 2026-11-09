@@ -26,6 +26,20 @@ async function anilistQuery<T = any>(
   return json;
 }
 
+export interface TitleCandidate { id: number; titles: string[]; format: string; year: number | null }
+
+export async function searchAnimeTitles(search: string): Promise<TitleCandidate[]> {
+  const json = await anilistQuery(`query ($search: String) {
+    Page(perPage: 50) { media(search: $search, type: ANIME, sort: SEARCH_MATCH, isAdult: false) {
+      id title { english romaji native } synonyms format seasonYear
+    } }
+  }`, { search });
+  return (json.data?.Page?.media ?? []).map((item: any) => ({
+    id: item.id, titles: [...new Set([item.title?.english, item.title?.romaji, item.title?.native, ...(item.synonyms || [])].filter((value): value is string => typeof value === "string" && !!value))],
+    format: item.format || "", year: item.seasonYear ?? null,
+  }));
+}
+
 const MEDIA_FIELDS = `
   id
   title { romaji english native }

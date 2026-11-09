@@ -9,7 +9,7 @@ const defaults = {
 
 test('switches only on confirmed server or episode failures', () => {
   assert.equal(server1Failure(defaults), null);
-  assert.match(server1Failure({ ...defaults, searchStatus: 'error' }), /could not be reached/);
+  assert.match(server1Failure({ ...defaults, hasChosenTitle: false, searchStatus: 'error' }), /could not be reached/);
   assert.match(server1Failure({ ...defaults, episodesStatus: 'error' }), /episode list/);
   assert.match(server1Failure({ ...defaults, matchingEpisodes: 0 }), /episode is unavailable/);
   assert.match(server1Failure({ ...defaults, matchCount: 0, hasChosenTitle: false }), /title is unavailable/);

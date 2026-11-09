@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -27,6 +28,7 @@ const queryClient = new QueryClient();
 function RouterInner() {
   const [location] = useLocation();
   const isFrontPage = location === "/";
+  useEffect(() => { window.scrollTo(0, 0); }, [location.split("?")[0]]);
 
   return (
     <>
