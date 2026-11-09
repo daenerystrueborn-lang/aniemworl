@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Download, Loader2, X } from "lucide-react";
 import { downloadHls, fetchQualities, formatSpeed, type DownloadProgress, type QualityOption } from "@/lib/download";
 import { resolveStreamUrl, type StreamMode } from "@/lib/stream-resolver";
+import { resolveRenderStream } from "@/lib/render-download";
 
 type Status =
   | { kind: "idle" }
@@ -11,8 +12,9 @@ type Status =
   | { kind: "done" }
   | { kind: "error"; message: string };
 
-export default function EpisodeDownload({ animeId, episodeNumber, title }: { animeId: string; episodeNumber: number; title: string }) {
+export default function EpisodeDownload({ animeId, malId, episodeNumber, title, titles }: { animeId: string; malId: number | null; episodeNumber: number; title: string; titles: string[] }) {
   const [track, setTrack] = useState<StreamMode>("sub");
+  const [source, setSource] = useState<"render" | "original">("render");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const controller = useRef<AbortController | null>(null);
 
@@ -24,7 +26,9 @@ export default function EpisodeDownload({ animeId, episodeNumber, title }: { ani
     controller.current = current;
     setStatus({ kind: "loading" });
     try {
-      const url = await resolveStreamUrl(animeId, episodeNumber, track, current.signal);
+      const url = source === "render"
+        ? await resolveRenderStream({ animeId, malId, titles, episodeNumber, track, signal: current.signal })
+        : await resolveStreamUrl(animeId, episodeNumber, track, current.signal);
       const qualities = await fetchQualities(url, current.signal);
       if (!current.signal.aborted) setStatus({ kind: "choose", qualities });
     } catch (error) {
@@ -58,7 +62,11 @@ export default function EpisodeDownload({ animeId, episodeNumber, title }: { ani
       <div className="flex flex-wrap items-center gap-3">
         <Download className="w-4 h-4 text-accent" />
         <h2 className="text-sm font-bold text-foreground">Download episode {episodeNumber}</h2>
-        <label className="text-xs text-muted-foreground ml-auto" htmlFor="download-track">Language</label>
+        <label className="text-xs text-muted-foreground ml-auto" htmlFor="download-source">Source</label>
+        <select id="download-source" value={source} disabled={busy} onChange={(event) => { cancel(); setSource(event.target.value as "render" | "original"); }} className="rounded border border-border bg-muted px-2 py-1.5 text-xs text-foreground">
+          <option value="render">Download server</option><option value="original">Original source</option>
+        </select>
+        <label className="text-xs text-muted-foreground" htmlFor="download-track">Language</label>
         <select id="download-track" value={track} disabled={busy} onChange={(event) => { cancel(); setTrack(event.target.value as StreamMode); }} className="rounded border border-border bg-muted px-2 py-1.5 text-xs text-foreground">
           <option value="sub">Sub</option><option value="dub">Dub</option>
         </select>
@@ -68,12 +76,12 @@ export default function EpisodeDownload({ animeId, episodeNumber, title }: { ani
           <button type="button" onClick={loadQualities} className="inline-flex items-center gap-1 rounded bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground"><Download className="w-3 h-3" /> {status.kind === "error" ? "Try again" : "Choose quality"}</button>
         )}
       </div>
-      {status.kind === "loading" && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Finding available qualities...</p>}
+      {status.kind === "loading" && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Finding this episode and available qualities...</p>}
       {status.kind === "choose" && <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">Choose quality:</span>{status.qualities.map((quality) => <button key={quality.url} type="button" onClick={() => startDownload(quality)} className="rounded border border-border bg-muted px-3 py-1.5 text-xs text-foreground hover:border-accent">{quality.label}</button>)}</div>}
       {status.kind === "downloading" && <div role="status" className="space-y-1"><p className="text-xs text-muted-foreground">Downloading: {status.progress.percent}% ({status.progress.done}/{status.progress.total} segments) {status.progress.bytesPerSecond > 0 && ` · ${formatSpeed(status.progress.bytesPerSecond)}`}</p><progress className="w-full h-2 accent-accent" value={status.progress.percent} max={100} /></div>}
       {status.kind === "done" && <p role="status" className="text-xs text-green-400">Download ready. Your browser will save the file.</p>}
       {status.kind === "error" && <p role="alert" className="text-xs text-red-400">{status.message}</p>}
-      <p className="text-xs text-muted-foreground">Availability depends on the source. Finding a stream uses a third-party proxy. Downloads run in your browser and may use substantial memory.</p>
+      <p className="text-xs text-muted-foreground">Availability depends on the source. {source === "original" ? "The original source uses a third-party proxy. " : "Video is fetched through the download server. "}Downloads run in your browser and may use substantial memory.</p>
     </section>
   );
 }
