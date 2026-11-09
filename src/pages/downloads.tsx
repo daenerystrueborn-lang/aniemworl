@@ -38,16 +38,6 @@ async function fetchNovelBook(slug: string): Promise<{ title: string; author: st
   return res.json();
 }
 
-/* ─── Ad Slot ─── */
-function AdSlot({ size = "banner" }: { size?: "banner" | "square" }) {
-  const h = size === "square" ? "h-[250px]" : "h-[90px] sm:h-[60px]";
-  return (
-    <div className={`w-full ${h} rounded-xl border border-dashed border-border bg-muted/20 flex items-center justify-center text-[10px] text-muted-foreground/40 font-medium tracking-widest uppercase select-none`}>
-      Advertisement
-    </div>
-  );
-}
-
 /* ─── Manga Chapter Panel ─── */
 function MangaChapterPanel({ seriesUrl, title }: { seriesUrl: string; title: string }) {
   const [open, setOpen] = useState(false);
@@ -249,10 +239,6 @@ export default function DownloadsPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-16 pb-20">
-        <div className="mb-4 mt-2">
-          <AdSlot size="banner" />
-        </div>
-
         <div className="mb-5">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-0.5">Downloads</h1>
           <p className="text-sm text-muted-foreground">
@@ -324,7 +310,6 @@ export default function DownloadsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-8"><AdSlot size="banner" /></div>
               </>
             )}
           </section>
@@ -361,15 +346,11 @@ export default function DownloadsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-8"><AdSlot size="banner" /></div>
               </>
             )}
           </section>
         )}
 
-        <div className="mt-12">
-          <AdSlot size="square" />
-        </div>
       </div>
     </div>
   );
