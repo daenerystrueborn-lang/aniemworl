@@ -9,6 +9,8 @@ import { apiUrl } from "@/lib/api";
 import { fetchAnimeDetails } from "@/lib/anilist";
 import { fetchJikanEpisodes } from "@/lib/jikan";
 import EpisodeDownload from "@/components/EpisodeDownload";
+import MiruPlayer from "@/components/MiruPlayer";
+import { exactMiruMatch, getMiruEpisodes, searchMiruTitles, type MiruTitle } from "@/lib/mirudl";
 
 interface WikiDetail {
   id: number;
@@ -280,6 +282,10 @@ export default function WatchPage() {
     setCurrentEp(episodeFromSearch());
   }, [id, search]);
   const [autoNext, setAutoNext] = useState(true);
+  const [playerMode, setPlayerMode] = useState<"mirudl" | "original">("mirudl");
+  const [chosenTitle, setChosenTitle] = useState<{ watchId: string; title: MiruTitle } | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [manualSearch, setManualSearch] = useState<{ watchId: string; query: string } | null>(null);
 
   const { data: anime, isLoading: animeLoading, isError: animeError } = useQuery<WikiDetail>({
     queryKey: ["wiki-detail", id],
@@ -313,7 +319,24 @@ export default function WatchPage() {
     enabled: !!anime?.id,
   });
 
-  const episodes = useMemo(() => {
+  const titles = useMemo(() => [anime?.title.english, anime?.title.romaji, anime?.title.native].filter((name): name is string => Boolean(name)), [anime]);
+  const manualQuery = manualSearch?.watchId === id ? manualSearch.query : "";
+  const { data: miruMatches = [], isLoading: matching, isError: matchError, refetch: retryMatches } = useQuery({
+    queryKey: ["mirudl-search", id, manualQuery, titles.join("|")],
+    queryFn: ({ signal }) => searchMiruTitles(manualQuery ? [manualQuery] : titles, signal),
+    enabled: !!anime && playerMode === "mirudl" && titles.length > 0,
+    staleTime: 10 * 60 * 1000,
+  });
+  const autoMatch = manualQuery ? null : exactMiruMatch(titles, miruMatches);
+  const chosenMiru = chosenTitle?.watchId === id ? chosenTitle.title : autoMatch;
+  const { data: miruEpisodes = [], isLoading: miruLoading, isError: miruError, refetch: retryEpisodes } = useQuery({
+    queryKey: ["mirudl-episodes", chosenMiru?.id],
+    queryFn: ({ signal }) => getMiruEpisodes(chosenMiru!.id, signal),
+    enabled: playerMode === "mirudl" && !!chosenMiru,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const originalEpisodes = useMemo(() => {
     if (fetchedEpisodes.length > 0) return fetchedEpisodes;
     if (anime?.episodes) {
       return Array.from({ length: anime.episodes }, (_, i) => ({
@@ -326,6 +349,10 @@ export default function WatchPage() {
     }
     return fetchedEpisodes;
   }, [fetchedEpisodes, anime?.episodes]);
+  const episodes: Episode[] = playerMode === "mirudl"
+    ? miruEpisodes.map((ep) => ({ ...ep, thumbnail: null, recap: false }))
+    : originalEpisodes;
+  const currentMiru = miruEpisodes.filter((ep) => ep.number === currentEp);
 
   const currentIndex = useMemo(
     () => episodes.findIndex((e) => e.number === currentEp),
@@ -407,19 +434,36 @@ export default function WatchPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
           {/* Left: Player + info */}
           <div className="space-y-4">
-            <IFramePlayer
-              anilistId={id}
-              episodeNumber={currentEp}
-              onPrev={handlePrev}
-              onNext={handleNext}
-              hasPrev={hasPrev}
-              hasNext={hasNext}
-              autoNext={autoNext}
-              onToggleAutoNext={() => setAutoNext((v) => !v)}
-              onEnded={handleNext}
-            />
-
-            <EpisodeDownload key={`${id}-${currentEp}`} animeId={id} malId={anime.malId} episodeNumber={currentEp} title={animeTitle} titles={[anime.title.english, anime.title.romaji, anime.title.native].filter((title): title is string => Boolean(title))} />
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label htmlFor="watch-source" className="text-muted-foreground">Player</label>
+              <select id="watch-source" value={playerMode} onChange={(e) => setPlayerMode(e.target.value as "mirudl" | "original")} className="bg-card border border-border rounded-lg px-3 py-2 text-foreground">
+                <option value="mirudl">MiruDL</option><option value="original">Original player</option>
+              </select>
+            </div>
+            {playerMode === "mirudl" ? (
+              <>
+                {matching && <p className="text-xs text-muted-foreground">Finding this anime on MiruDL...</p>}
+                {matchError && <p role="alert" className="text-xs text-red-400">Could not search MiruDL. <button onClick={() => retryMatches()} className="underline">Retry</button></p>}
+                {!matching && !matchError && !chosenMiru && (
+                  <div className="bg-card border border-border rounded-xl p-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">Select the matching title on MiruDL to avoid playing the wrong season.</p>
+                    <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (searchInput.trim()) { setChosenTitle(null); setManualSearch({ watchId: id, query: searchInput.trim() }); } }}>
+                      <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search MiruDL" className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground flex-1 min-w-0" />
+                      <button className="bg-accent text-accent-foreground rounded px-3 py-1.5 text-xs">Search</button>
+                    </form>
+                    {miruMatches.length ? <div className="flex flex-wrap gap-2">{miruMatches.slice(0, 20).map((item) => <button key={item.id} onClick={() => setChosenTitle({ watchId: id, title: item })} className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground hover:border-accent">{item.title}</button>)}</div> : <p className="text-xs text-muted-foreground">No matching titles found. Try another name or the original player.</p>}
+                  </div>
+                )}
+                {chosenMiru && <p className="text-xs text-muted-foreground">MiruDL: {chosenMiru.title} <button onClick={() => { setChosenTitle(null); setManualSearch({ watchId: id, query: chosenMiru.title }); setSearchInput(chosenMiru.title); }} className="text-accent underline ml-1">Change</button></p>}
+                {miruError && <p role="alert" className="text-xs text-red-400">Could not load MiruDL episodes. <button onClick={() => retryEpisodes()} className="underline">Retry</button></p>}
+                <MiruPlayer key={id} episodeId={currentMiru.length === 1 ? currentMiru[0].id : undefined} episodeNumber={currentEp} title={animeTitle} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} />
+              </>
+            ) : (
+              <>
+                <IFramePlayer anilistId={id} episodeNumber={currentEp} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} autoNext={autoNext} onToggleAutoNext={() => setAutoNext((v) => !v)} onEnded={handleNext} />
+                <EpisodeDownload key={`${id}-${currentEp}`} animeId={id} malId={anime.malId} episodeNumber={currentEp} title={animeTitle} titles={titles} />
+              </>
+            )}
 
             {/* Anime info strip */}
             <div className="flex items-start gap-4 bg-card border border-border rounded-xl p-4">
@@ -492,7 +536,7 @@ export default function WatchPage() {
 
           {/* Right: Episode list */}
           <div className="h-[500px] lg:h-auto lg:max-h-[calc(100vh-8rem)] lg:sticky lg:top-20">
-            {(episodesLoading && episodes.length === 0) ? (
+            {(((playerMode === "mirudl" ? matching || (!!chosenMiru && miruLoading) : episodesLoading)) && episodes.length === 0) ? (
               <div className="h-full bg-card border border-border rounded-lg flex items-center justify-center">
                 <div className="text-center">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto mb-2" />
@@ -504,7 +548,7 @@ export default function WatchPage() {
                 <div className="text-center px-4">
                   <AlertCircle className="w-7 h-7 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">No episode list available.</p>
-                  <p className="text-xs text-muted-foreground mt-1">Use the player controls to navigate.</p>
+                  <p className="text-xs text-muted-foreground mt-1">{playerMode === "mirudl" ? "Choose a matching MiruDL title or switch to the original player." : "Use the player controls to navigate."}</p>
                 </div>
               </div>
             ) : (
