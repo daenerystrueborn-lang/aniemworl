@@ -206,7 +206,7 @@ export default function RankingsPage() {
                       <Star className="w-2.5 h-2.5 fill-accent" />{(item.score / 10).toFixed(1)}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground/40 text-xs">—</span>
+                    <span className="text-muted-foreground/40 text-xs">N/A</span>
                   )}
                 </div>
               </Link>

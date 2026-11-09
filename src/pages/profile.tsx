@@ -206,7 +206,7 @@ export default function ProfilePage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground mb-2">Sign in with AniList</h1>
             <p className="text-muted-foreground text-sm leading-relaxed max-w-md">
-              Log in with your AniList account to sync your watchlist, track your anime progress, and access your profile across all your devices — completely free.
+              Log in with your AniList account to sync your watchlist, track your anime progress, and access your profile across all your devices, completely free.
             </p>
           </div>
           <button

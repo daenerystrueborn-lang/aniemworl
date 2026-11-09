@@ -29,7 +29,7 @@ export default function OAuthCallbackPage() {
       {error ? (
         <>
           <AlertCircle className="w-8 h-8 text-destructive" />
-          <p className="text-sm text-muted-foreground">Login failed — no token received.</p>
+          <p className="text-sm text-muted-foreground">Login failed: no token received.</p>
           <a href="/profile" className="text-accent text-sm hover:underline">← Back to profile</a>
         </>
       ) : (

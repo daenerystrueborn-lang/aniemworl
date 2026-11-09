@@ -3,7 +3,7 @@ import { Crown, Check, Zap, ShieldOff, Sparkles } from "lucide-react";
 import { usePremium } from "@/lib/premium-context";
 
 const features = [
-  { icon: <ShieldOff className="w-5 h-5 text-yellow-400" />, title: "Zero Ads", desc: "No banners, no popunders, no interruptions — ever." },
+  { icon: <ShieldOff className="w-5 h-5 text-yellow-400" />, title: "Zero Ads", desc: "No banners, no popunders, no interruptions, ever." },
   { icon: <Zap className="w-5 h-5 text-yellow-400" />, title: "Faster Streaming", desc: "Ad scripts never slow down your player." },
   { icon: <Sparkles className="w-5 h-5 text-yellow-400" />, title: "Support the Site", desc: "Help keep Animeastral free for everyone." },
 ];
@@ -66,7 +66,7 @@ export default function PremiumPage() {
               <p className="text-muted-foreground text-xs uppercase tracking-widest mb-1">One-time</p>
               <p className="text-5xl font-black text-foreground mb-1">Free</p>
               <p className="text-muted-foreground text-sm mb-6">
-                Activate now — no account or payment needed during beta.
+                Activate now. No account or payment is needed during beta.
               </p>
               <button
                 onClick={activate}

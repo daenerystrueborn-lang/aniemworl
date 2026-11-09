@@ -264,7 +264,7 @@ export default function DownloadButton({ hlsUrl = "", hlsUrlFetcher, filename, c
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold text-foreground truncate">
-                {activeQuality} &mdash; {progress.percent}%
+                {activeQuality} - {progress.percent}%
               </span>
               <span className="text-[10px] text-muted-foreground ml-2 shrink-0">
                 {progress.bytesPerSecond > 0 ? formatSpeed(progress.bytesPerSecond) : "…"}
@@ -348,7 +348,7 @@ export default function DownloadButton({ hlsUrl = "", hlsUrlFetcher, filename, c
 
           <div className="px-3 py-2 border-t border-border bg-muted/40">
             <p className="text-[10px] text-muted-foreground leading-snug">
-              Saves as <span className="text-foreground font-medium">.ts</span> — open with VLC or mpv
+              Saves as <span className="text-foreground font-medium">.ts</span> - open with VLC or mpv
             </p>
           </div>
         </div>

@@ -288,7 +288,7 @@ export default function MoviesPage() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Movies</h1>
           <p className="text-sm text-muted-foreground mb-5">
-            Search any movie and watch it instantly — no popups, right here on the page.
+            Search any movie and watch it instantly, with no popups, right here on the page.
           </p>
 
           {/* Search */}
@@ -328,7 +328,7 @@ export default function MoviesPage() {
               : debouncedQuery
               ? `Results for "${debouncedQuery}"`
               : "Popular movies"}
-            {!loading && results.length > 0 && ` — ${results.length} titles`}
+            {!loading && results.length > 0 && ` - ${results.length} titles`}
           </p>
           {playingMovie && (
             <p className="text-xs text-accent font-medium flex items-center gap-1">

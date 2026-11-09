@@ -142,7 +142,7 @@ export default function AnimePage() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Anime</h1>
           <p className="text-sm text-muted-foreground mb-5">
-            Thousands of titles — from trending hits to all-time classics.
+            Thousands of titles, from trending hits to all-time classics.
           </p>
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -235,7 +235,7 @@ export default function AnimePage() {
               : selectedGenre
               ? `${selectedGenre} anime`
               : CATEGORIES.find((c) => c.id === category)?.label}
-            {!isLoading && ` — ${items.length} titles`}
+            {!isLoading && ` - ${items.length} titles`}
           </p>
         </div>
 

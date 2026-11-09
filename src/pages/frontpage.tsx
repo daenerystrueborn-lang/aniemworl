@@ -17,7 +17,7 @@ const FEATURES = [
   {
     icon: <Globe className="w-5 h-5 text-accent" />,
     title: "Sub & Dub",
-    desc: "Watch in your preferred language — subtitled or dubbed — with automatic source switching.",
+    desc: "Watch in your preferred language, subtitled or dubbed, with automatic source switching.",
   },
   {
     icon: <Shield className="w-5 h-5 text-accent" />,
@@ -27,7 +27,7 @@ const FEATURES = [
   {
     icon: <Film className="w-5 h-5 text-accent" />,
     title: "Movies Too",
-    desc: "Not just series — browse and watch anime movies and live-action films in one place.",
+    desc: "Browse and watch anime movies and live-action films, not just series, in one place.",
   },
 ];
 
@@ -113,7 +113,7 @@ export default function FrontPage() {
             Animeastral
           </h1>
           <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-xl mb-3 leading-relaxed">
-            Your free gateway to thousands of anime, movies, and more — streamed instantly, no subscription required.
+            Your free gateway to thousands of anime, movies, and more, streamed instantly with no subscription required.
           </p>
           <p className="text-sm text-accent/80 font-medium italic mb-8">
             Your fictional stories hub.
@@ -161,7 +161,7 @@ export default function FrontPage() {
         <div className="text-center mb-12">
           <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">What is Animeastral?</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
-            Animeastral is a top-tier free anime streaming site that lets you watch anime in HD quality without any credit card or sign-up. Search for any title, pick an episode, and watch — it's that simple. Sub, Dub, Movies, OVAs — we've got it all.
+            Animeastral is a top-tier free anime streaming site that lets you watch anime in HD quality without any credit card or sign-up. Search for any title, pick an episode, and watch. It's that simple. Sub, Dub, Movies, OVAs: we've got it all.
           </p>
         </div>
 

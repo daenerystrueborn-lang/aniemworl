@@ -183,6 +183,6 @@ export async function resolveStreamUrl(
 
   throw new Error(
     "Stream URL not found in embed page. " +
-    "The player embed may have changed its format — open an issue."
+    "The player embed may have changed its format. Please open an issue."
   );
 }
