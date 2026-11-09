@@ -1,282 +1,179 @@
-/**
- * download.ts — pure client-side HLS downloader.
- *
- * No backend required. Works entirely in the browser using the Fetch API.
- * The browser fetches each .ts segment (same way hls.js does for playback),
- * stitches them into one Blob, and saves the file.
- *
- * ⚠️  CORS requirement:
- *     This only works if the CDN returns Access-Control-Allow-Origin headers
- *     on segment responses. If hls.js can play the stream, this can download it —
- *     they both make the same cross-origin requests.
- *
- * Usage:
- *   import { fetchQualities, downloadHls } from "@/lib/download";
- *
- *   const qualities = await fetchQualities("https://cdn.../master.m3u8");
- *   // → [{ label: "1080p", url: "...", bandwidth: 4500000 }, ...]
- *
- *   await downloadHls(qualities[0].url, "Attack on Titan EP 1", (p) => {
- *     console.log(`${p.percent}% — ${p.done}/${p.total} segments`);
- *   });
- */
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
+/** Browser-side HLS downloads. Sources must permit cross-origin requests. */
 export interface QualityOption {
-  label: string;      // "1080p" | "720p" | "480p" | "360p" | "Auto"
-  url: string;        // media playlist URL for this quality
-  bandwidth: number;  // bits/sec (0 for single-stream playlists)
+  label: string;
+  url: string;
+  bandwidth: number;
 }
 
 export interface DownloadProgress {
-  percent: number;       // 0–100
-  done: number;          // segments downloaded so far
-  total: number;         // total segments
-  bytesPerSecond: number;// smoothed download speed
+  percent: number;
+  done: number;
+  total: number;
+  bytesPerSecond: number;
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
+function playlistLines(text: string): string[] {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim());
+  if (lines[0] !== "#EXTM3U") throw new Error("The source did not return a valid video playlist.");
+  return lines;
+}
 
-const HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  Accept: "*/*",
-};
-
-/** Resolve a relative segment URL against the playlist base URL */
-function resolveUrl(seg: string, base: string): string {
-  if (seg.startsWith("http://") || seg.startsWith("https://")) return seg;
-  if (seg.startsWith("//")) return "https:" + seg;
-  if (seg.startsWith("/")) {
-    const u = new URL(base);
-    return `${u.protocol}//${u.host}${seg}`;
+async function getResponse(url: string, signal?: AbortSignal): Promise<Response> {
+  try {
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`The video source returned HTTP ${response.status}.`);
+    return response;
+  } catch (error) {
+    if (signal?.aborted) throw new DOMException("Download cancelled", "AbortError");
+    if (error instanceof TypeError) throw new Error("The video source blocked browser access. This episode cannot be downloaded without a compatible server.");
+    throw error;
   }
-  const dir = base.substring(0, base.lastIndexOf("/") + 1);
-  return dir + seg;
 }
 
-async function getText(url: string, signal?: AbortSignal): Promise<string> {
-  const res = await fetch(url, { headers: HEADERS, signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
-  return res.text();
-}
-
-async function getBytes(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const res = await fetch(url, { headers: HEADERS, signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching segment`);
-  return res.arrayBuffer();
-}
-
-// ─── M3U8 parsing ─────────────────────────────────────────────────────────────
-
-/**
- * Parse a master playlist into quality options sorted best → worst.
- * If the URL is already a media playlist, returns a single "Auto" option.
- */
-export async function fetchQualities(
-  m3u8Url: string,
-  signal?: AbortSignal
-): Promise<QualityOption[]> {
-  const text = await getText(m3u8Url, signal);
-
-  // Master playlist — has multiple streams
-  if (text.includes("#EXT-X-STREAM-INF")) {
-    const lines = text.split(/\r?\n/);
-    const streams: QualityOption[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line.startsWith("#EXT-X-STREAM-INF")) continue;
-
-      const bwMatch = line.match(/BANDWIDTH=(\d+)/);
-      const resMatch = line.match(/RESOLUTION=\d+x(\d+)/);
-      const bandwidth = bwMatch ? parseInt(bwMatch[1], 10) : 0;
-      const height = resMatch ? parseInt(resMatch[1], 10) : 0;
-
-      const label =
-        height >= 1080
-          ? "1080p"
-          : height >= 720
-            ? "720p"
-            : height >= 480
-              ? "480p"
-              : height > 0
-                ? `${height}p`
-                : bandwidth >= 4_500_000
-                  ? "1080p"
-                  : bandwidth >= 2_200_000
-                    ? "720p"
-                    : bandwidth >= 1_000_000
-                      ? "480p"
-                      : bandwidth > 0
-                        ? "360p"
-                        : "Auto";
-
-      const next = lines[i + 1]?.trim();
-      if (next && !next.startsWith("#")) {
-        streams.push({ label, url: resolveUrl(next, m3u8Url), bandwidth });
-        i++;
-      }
+export async function fetchQualities(url: string, signal?: AbortSignal): Promise<QualityOption[]> {
+  const lines = playlistLines(await (await getResponse(url, signal)).text());
+  if (lines.some((line) => line.startsWith("#EXT-X-SESSION-KEY:") && !/(?:^|,)METHOD=NONE(?:,|$)/.test(line.slice(19)))) {
+    throw new Error("Encrypted video downloads are not supported in the browser.");
+  }
+  const variants: QualityOption[] = [];
+  let pending: string | null = null;
+  const externalAudio = new Set<string>();
+  for (const line of lines) {
+    if (line.startsWith("#EXT-X-MEDIA:") && /(?:^|,)TYPE=AUDIO(?:,|$)/.test(line.slice(13)) && /(?:^|,)URI=/.test(line.slice(13))) {
+      const group = /(?:^|,)GROUP-ID="([^"]+)"/.exec(line.slice(13));
+      if (group) externalAudio.add(group[1]);
     }
-
-    return streams.sort((a, b) => b.bandwidth - a.bandwidth);
   }
-
-  // Already a media playlist
-  if (text.includes("#EXTINF") || text.includes("#EXT-X-TARGETDURATION")) {
-    return [{ label: "Auto", url: m3u8Url, bandwidth: 0 }];
+  for (const line of lines) {
+    if (line.startsWith("#EXT-X-STREAM-INF:")) pending = line;
+    else if (pending && line && !line.startsWith("#")) {
+      const audioGroup = /(?:^|,)AUDIO="([^"]+)"/.exec(pending.slice(18))?.[1];
+      if (!audioGroup || !externalAudio.has(audioGroup)) {
+        const bandwidth = Number(/(?:^|,)BANDWIDTH=(\d+)/.exec(pending.slice(18))?.[1] || 0);
+        const height = Number(/RESOLUTION=\d+x(\d+)/i.exec(pending)?.[1] || 0);
+        variants.push({ label: height ? `${height}p` : bandwidth ? `${(bandwidth / 1_000_000).toFixed(1)} Mbps` : "Available quality", url: new URL(line, url).href, bandwidth });
+      }
+      pending = null;
+    }
   }
-
-  throw new Error("URL does not appear to be a valid M3U8 playlist");
+  if (lines.some((line) => line.startsWith("#EXT-X-STREAM-INF:"))) {
+    if (!variants.length) throw new Error("No downloadable quality is available. Separate audio tracks are not supported in the browser.");
+    return variants.sort((a, b) => b.bandwidth - a.bandwidth);
+  }
+  if (lines.some((line) => line.startsWith("#EXTINF:"))) return [{ label: "Available quality", url, bandwidth: 0 }];
+  throw new Error("No downloadable video was found in this playlist.");
 }
 
-interface ParsedSegments {
-  initUrl: string | null;  // #EXT-X-MAP (codec container header, must come first)
-  segments: string[];
-}
-
-function parseMediaPlaylist(text: string, baseUrl: string): ParsedSegments {
-  const lines = text.split(/\r?\n/);
+export function parseMediaPlaylist(text: string, baseUrl: string): { initUrl: string | null; segments: string[] } {
+  const lines = playlistLines(text);
+  if (!lines.includes("#EXT-X-ENDLIST")) throw new Error("Live or incomplete playlists cannot be downloaded.");
   let initUrl: string | null = null;
   const segments: string[] = [];
-
   for (const line of lines) {
-    const t = line.trim();
-    if (t.startsWith("#EXT-X-MAP")) {
-      const m = t.match(/URI="([^"]+)"/);
-      if (m) initUrl = resolveUrl(m[1], baseUrl);
-    } else if (!t.startsWith("#") && t.length > 0) {
-      segments.push(resolveUrl(t, baseUrl));
+    if (line.startsWith("#EXT-X-KEY:") && !/(?:^|,)METHOD=NONE(?:,|$)/.test(line.slice(11))) throw new Error("Encrypted video downloads are not supported in the browser.");
+    if (line.startsWith("#EXT-X-BYTERANGE:") || line.startsWith("#EXT-X-DISCONTINUITY") || line.startsWith("#EXT-X-GAP")) throw new Error("This video uses a playlist format that cannot be safely downloaded in the browser.");
+    if (line.startsWith("#EXT-X-MAP:")) {
+      if (initUrl || segments.length || line.includes("BYTERANGE=")) throw new Error("This video uses an unsupported initialization format.");
+      const uri = /(?:^|,)URI="([^"]+)"/.exec(line.slice(11))?.[1];
+      if (!uri) throw new Error("The video initialization segment is missing.");
+      initUrl = new URL(uri, baseUrl).href;
+    } else if (line && !line.startsWith("#")) {
+      segments.push(new URL(line, baseUrl).href);
     }
   }
-
+  if (!segments.length) throw new Error("No video segments were found.");
   return { initUrl, segments };
 }
 
-// ─── Downloader ───────────────────────────────────────────────────────────────
+// AniFam-derived image-prefixed MPEG-TS segments must be unwrapped before saving.
+export function unwrapSegment(data: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
+  const isImage = (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47) ||
+    (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) ||
+    (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x38) ||
+    (data[0] === 0x52 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x46) ||
+    (data[0] === 0x42 && data[1] === 0x4d);
+  if (!isImage) return data;
+  for (let i = 0; i + 376 < Math.min(data.length, 65536); i++) {
+    if (data[i] === 0x47 && data[i + 188] === 0x47 && data[i + 376] === 0x47) return data.subarray(i);
+  }
+  throw new Error("The video source returned an unsupported image segment.");
+}
 
-/**
- * Download an HLS stream and save it as a .ts file.
- *
- * @param mediaUrl    URL of a media playlist (not a master) — use fetchQualities
- *                    first if you need to let the user pick a quality.
- * @param filename    Output filename (no extension needed — .ts is added).
- * @param onProgress  Called after each segment with live progress info.
- * @param signal      Optional AbortSignal to cancel the download mid-way.
- *
- * @example
- *   const controller = new AbortController();
- *
- *   await downloadHls(
- *     "https://cdn.../720p/index.m3u8",
- *     "My Anime EP 5",
- *     ({ percent, done, total, bytesPerSecond }) => {
- *       console.log(`${percent}% — ${(bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s`);
- *     },
- *     controller.signal
- *   );
- *
- *   // To cancel:
- *   controller.abort();
- */
 export async function downloadHls(
   mediaUrl: string,
   filename: string,
-  onProgress: (p: DownloadProgress) => void,
-  signal?: AbortSignal
+  onProgress: (progress: DownloadProgress) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  // 1. Fetch the media playlist
-  const playlistText = await getText(mediaUrl, signal);
-  const { initUrl, segments } = parseMediaPlaylist(playlistText, mediaUrl);
-
-  if (segments.length === 0) {
-    throw new Error("No segments found in playlist");
-  }
-
-  const total = segments.length;
-  const buffers: ArrayBuffer[] = [];
-  let totalBytes = 0;
-  let smoothedBps = 0;
-
-  // 2. Fetch init segment if present (must be first in the output)
-  if (initUrl) {
-    try {
-      const initBuf = await getBytes(initUrl, signal);
-      buffers.push(initBuf);
-      totalBytes += initBuf.byteLength;
-    } catch {
-      // Non-fatal — some streams declare an init segment but don't need it
+  const { initUrl, segments } = parseMediaPlaylist(await (await getResponse(mediaUrl, signal)).text(), mediaUrl);
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) controller.abort();
+  try {
+    const getBytes = async (url: string): Promise<Uint8Array<ArrayBuffer>> => {
+      // Retry transient failures without retrying browser/CORS or authentication errors.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const response = await getResponse(url, controller.signal);
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          if (!bytes.length) throw new Error("The video source returned an empty segment.");
+          return bytes;
+        } catch (error) {
+          if (controller.signal.aborted || attempt >= 2 || !(error instanceof Error) || !/HTTP (429|5\d\d)/.test(error.message)) throw error;
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => { controller.signal.removeEventListener("abort", abort); resolve(); }, (attempt + 1) * 400);
+            const abort = () => { clearTimeout(timer); reject(new DOMException("Download cancelled", "AbortError")); };
+            controller.signal.addEventListener("abort", abort, { once: true });
+          });
+        }
+      }
+    };
+    const parts: Uint8Array<ArrayBuffer>[] = new Array(segments.length);
+    const init = initUrl ? await getBytes(initUrl) : null;
+    if (init && (init.length < 8 || !["ftyp", "moov", "free"].includes(String.fromCharCode(...init.subarray(4, 8))))) {
+      throw new Error("The video initialization segment is not a supported MP4 file.");
     }
-  }
-
-  // 3. Fetch all segments in order, tracking speed
-  let windowStart = performance.now();
-  let windowBytes = 0;
-
-  for (let i = 0; i < segments.length; i++) {
-    if (signal?.aborted) throw new DOMException("Download cancelled", "AbortError");
-
-    const segBuf = await getBytes(segments[i], signal);
-    buffers.push(segBuf);
-    totalBytes += segBuf.byteLength;
-    windowBytes += segBuf.byteLength;
-
-    // Smooth the speed with an exponential moving average
-    const now = performance.now();
-    const elapsed = (now - windowStart) / 1000;
-    if (elapsed >= 0.5) {
-      const rawBps = windowBytes / elapsed;
-      smoothedBps = smoothedBps > 0 ? rawBps * 0.35 + smoothedBps * 0.65 : rawBps;
-      windowStart = now;
-      windowBytes = 0;
-    }
-
-    onProgress({
-      percent: Math.round(((i + 1) / total) * 100),
-      done: i + 1,
-      total,
-      bytesPerSecond: Math.round(smoothedBps),
+    let next = 0, done = 0, bytes = init?.byteLength ?? 0;
+    const start = performance.now();
+    const workers = Array.from({ length: Math.min(4, segments.length) }, async () => {
+      while (next < segments.length) {
+        const index = next++;
+        const data = await getBytes(segments[index]);
+        const segment = initUrl ? data : unwrapSegment(data);
+        if (initUrl) {
+          const box = segment.length >= 8 ? String.fromCharCode(...segment.subarray(4, 8)) : "";
+          if (!["styp", "moof", "sidx", "emsg", "prft", "free"].includes(box)) throw new Error("The source returned an invalid MP4 segment.");
+        } else if (segment.length < 377 || segment[0] !== 0x47 || segment[188] !== 0x47 || segment[376] !== 0x47) {
+          throw new Error("The source returned an invalid or unsupported video segment.");
+        }
+        parts[index] = segment;
+        bytes += segment.byteLength;
+        if (bytes > 1024 * 1024 * 1024) throw new Error("This download is too large for browser memory. A download server is needed.");
+        done++;
+        onProgress({ percent: Math.floor(done * 100 / segments.length), done, total: segments.length, bytesPerSecond: Math.round(bytes / Math.max((performance.now() - start) / 1000, 0.1)) });
+      }
     });
+    await Promise.all(workers);
+    if (controller.signal.aborted) throw new DOMException("Download cancelled", "AbortError");
+    const blob = new Blob(init ? [init, ...parts] : parts, { type: init ? "video/mp4" : "video/mp2t" });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = `${filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")}.${init ? "mp4" : "ts"}`;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+  } catch (error) {
+    controller.abort();
+    throw error;
+  } finally {
+    signal?.removeEventListener("abort", cancel);
   }
-
-  // 4. Concatenate all buffers into one Uint8Array
-  const output = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const buf of buffers) {
-    output.set(new Uint8Array(buf), offset);
-    offset += buf.byteLength;
-  }
-
-  // 5. Trigger browser save-as dialog
-  const blob = new Blob([output], { type: "video/mp2t" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const safeFilename = filename.replace(/[<>:"/\\|?*]/g, "_");
-  a.href = url;
-  a.download = safeFilename + ".ts";
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-
-  // Clean up the object URL after a short delay
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-// ─── Formatting helpers (useful in your UI) ──────────────────────────────────
-
-/** Format bytes/sec as a human-readable speed string */
 export function formatSpeed(bps: number): string {
-  if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} MB/s`;
-  if (bps >= 1_000) return `${Math.round(bps / 1_000)} KB/s`;
-  return `${bps} B/s`;
-}
-
-/** Format total bytes as a human-readable size string */
-export function formatSize(bytes: number): string {
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(2)} GB`;
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  if (bytes >= 1_024) return `${Math.round(bytes / 1_024)} KB`;
-  return `${bytes} B`;
+  return bps >= 1_000_000 ? `${(bps / 1_000_000).toFixed(1)} MB/s` : `${Math.round(bps / 1_000)} KB/s`;
 }

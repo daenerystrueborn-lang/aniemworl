@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useParams, useLocation, Link } from "wouter";
+import { useParams, useLocation, useSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft, ChevronRight, Loader2, AlertCircle,
@@ -8,7 +8,7 @@ import {
 import { apiUrl } from "@/lib/api";
 import { fetchAnimeDetails } from "@/lib/anilist";
 import { fetchJikanEpisodes } from "@/lib/jikan";
-import { resolveStreamUrl } from "@/lib/stream-resolver";
+import EpisodeDownload from "@/components/EpisodeDownload";
 
 interface WikiDetail {
   id: number;
@@ -186,8 +186,6 @@ function EpisodeList({
   );
 }
 
-// resolveStreamUrl (from stream-resolver.ts) is used directly in JSX below.
-
 // Anime sources — megaplay sub/dub + vidwish backup (proxy is movies-only)
 const QUALITY_LABELS = ["Sub", "Dub", "Backup"];
 
@@ -271,9 +269,16 @@ export default function WatchPage() {
   const [location, setLocation] = useLocation();
   const id = params.id;
 
-  const searchParams = new URLSearchParams(location.includes("?") ? location.split("?")[1] : "");
-  const epParam = searchParams.get("ep");
-  const [currentEp, setCurrentEp] = useState(epParam ? parseInt(epParam, 10) : 1);
+  const search = useSearch();
+  const episodeFromSearch = () => {
+    const value = Number(new URLSearchParams(search).get("ep"));
+    return Number.isSafeInteger(value) && value > 0 ? value : 1;
+  };
+  const [currentEp, setCurrentEp] = useState(episodeFromSearch);
+
+  useEffect(() => {
+    setCurrentEp(episodeFromSearch());
+  }, [id, search]);
   const [autoNext, setAutoNext] = useState(true);
 
   const { data: anime, isLoading: animeLoading, isError: animeError } = useQuery<WikiDetail>({
@@ -414,6 +419,8 @@ export default function WatchPage() {
               onEnded={handleNext}
             />
 
+            <EpisodeDownload key={`${id}-${currentEp}`} animeId={id} episodeNumber={currentEp} title={animeTitle} />
+
             {/* Anime info strip */}
             <div className="flex items-start gap-4 bg-card border border-border rounded-xl p-4">
               {anime.cover && (
@@ -502,6 +509,7 @@ export default function WatchPage() {
               </div>
             ) : (
               <EpisodeList
+                key={id}
                 episodes={episodes}
                 currentEp={currentEp}
                 animeId={id}

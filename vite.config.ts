@@ -17,6 +17,7 @@ export default defineConfig({
   server: {
     port: 8715,
     host: "0.0.0.0",
+    allowedHosts: [".e2b.app"],
     proxy: {
       "/api": { target: "https://animeastral.qzz.io", changeOrigin: true, secure: false },
       "/uploads": { target: "https://animeastral.qzz.io", changeOrigin: true, secure: false },
