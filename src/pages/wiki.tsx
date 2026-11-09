@@ -93,7 +93,6 @@ export default function WikiPage() {
               placeholder="Search titles…"
               value={search}
               onChange={(e) => handleInput(e.target.value)}
-              autoFocus
               className="w-full bg-muted border border-border rounded pl-9 pr-3 py-2 sm:py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/60"
             />
           </div>

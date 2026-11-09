@@ -10,10 +10,10 @@ export function normalizeTitle(title: string): string {
 async function api(path: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
   let res: Response;
   try { res = await fetch(`${BASE}${path}`, { signal }); }
-  catch (err) { if (signal?.aborted) throw err; throw new Error("Could not reach the MiruDL server. Please try again."); }
+  catch (err) { if (signal?.aborted) throw err; throw new Error("Could not reach Server 1. Please try again."); }
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : `MiruDL server returned HTTP ${res.status}.`);
-  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid response from MiruDL server.");
+  if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error.replace(/mirudl/gi, "Server 1") : `Server 1 returned HTTP ${res.status}.`);
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid response from Server 1.");
   return data;
 }
 
@@ -46,7 +46,7 @@ export function exactMiruMatch(titles: string[], results: MiruTitle[]): MiruTitl
 
 export async function getMiruEpisodes(animeId: string, signal?: AbortSignal): Promise<MiruEpisode[]> {
   const data = await api(`/api/catalog/episodes?provider=mirudl&animeId=${encodeURIComponent(animeId)}`, signal);
-  if (!Array.isArray(data.episodes)) throw new Error("MiruDL returned an invalid episode list.");
+  if (!Array.isArray(data.episodes)) throw new Error("Server 1 returned an invalid episode list.");
   return data.episodes.filter((ep): ep is MiruEpisode => ep && (typeof ep.id === "string" || typeof ep.id === "number") && Number.isFinite(Number(ep.number)) && Number(ep.number) > 0)
     .map((ep) => ({ id: String(ep.id), number: Number(ep.number), title: ep.title || `Episode ${ep.number}`, filler: Boolean(ep.filler) }));
 }
@@ -54,14 +54,14 @@ export async function getMiruEpisodes(animeId: string, signal?: AbortSignal): Pr
 export function renderUrl(path: string, requiredPath: string): string {
   const base = new URL(BASE);
   const url = new URL(path, `${base.origin}/`);
-  if (url.origin !== base.origin || url.pathname !== requiredPath) throw new Error("MiruDL returned an invalid server link.");
+  if (url.origin !== base.origin || url.pathname !== requiredPath) throw new Error("Server 1 returned an invalid server link.");
   return url.href;
 }
 
 export async function getMiruSession(episodeId: string, track: "sub" | "dub", quality: string, signal?: AbortSignal): Promise<MiruSession> {
   const params = new URLSearchParams({ episodeId, lang: track === "dub" ? "eng" : "jpn", quality });
   const data = await api(`/api/mirudl/play?${params}`, signal);
-  if (typeof data.proxyHlsUrl !== "string" || typeof data.downloadUrl !== "string") throw new Error("MiruDL did not provide a playable stream.");
+  if (typeof data.proxyHlsUrl !== "string" || typeof data.downloadUrl !== "string") throw new Error("Server 1 did not provide a playable stream.");
   return {
     proxyHlsUrl: renderUrl(data.proxyHlsUrl, "/api/proxy/hls"),
     proxySelectedHlsUrl: renderUrl(typeof data.proxySelectedHlsUrl === "string" ? data.proxySelectedHlsUrl : data.proxyHlsUrl, "/api/proxy/hls"),

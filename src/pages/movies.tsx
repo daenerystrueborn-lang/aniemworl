@@ -299,7 +299,6 @@ export default function MoviesPage() {
               placeholder="Search movies…"
               value={query}
               onChange={(e) => handleSearchChange(e.target.value)}
-              autoFocus
               className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/60"
             />
             {query && (

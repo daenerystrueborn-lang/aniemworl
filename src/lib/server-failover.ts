@@ -11,7 +11,7 @@ export function server1Failure(state: {
   matchingEpisodes: number;
 }): string | null {
   if (!state.active) return null;
-  if (!state.searching && state.searchStatus === "error") return "Server 1 could not be reached.";
+  if (!state.hasChosenTitle && !state.searching && state.searchStatus === "error") return "Server 1 could not be reached.";
   if (!state.searching && state.searchStatus === "success" && !state.manualSearch && !state.hasChosenTitle && state.matchCount === 0) return "This title is unavailable on Server 1.";
   if (state.hasChosenTitle && !state.loadingEpisodes) {
     if (state.episodesStatus === "error") return "Server 1 could not load the episode list.";

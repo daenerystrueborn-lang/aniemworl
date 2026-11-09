@@ -3,14 +3,17 @@ import { useParams, useLocation, useSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft, ChevronRight, Loader2, AlertCircle,
-  Search, List, Grid3X3, Image as ImageIcon, Play,
+  Search, List, Grid3X3, Image as ImageIcon, Play, Download, X,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
-import { fetchAnimeDetails } from "@/lib/anilist";
+import { fetchAnimeDetails, searchAnimeTitles, type TitleCandidate } from "@/lib/anilist";
 import { fetchJikanEpisodes } from "@/lib/jikan";
 import EpisodeDownload from "@/components/EpisodeDownload";
 import MiruPlayer from "@/components/MiruPlayer";
-import { exactMiruMatch, getMiruEpisodes, searchMiruTitles, type MiruTitle } from "@/lib/mirudl";
+import { exactMiruMatch, getMiruEpisodes, searchMiruTitles, normalizeTitle, type MiruTitle } from "@/lib/mirudl";
+import { exactTitleCandidates } from "@/lib/title-matching";
+import { useEpisodeDownloads } from "@/hooks/useEpisodeDownloads";
+import { formatSpeed } from "@/lib/download";
 import { server1Failure, withServerTimeout } from "@/lib/server-failover";
 
 interface WikiDetail {
@@ -56,14 +59,16 @@ function EpisodeList({
   episodes,
   currentEp,
   animeId,
-  animeTitle,
   onSelect,
+  onDownload,
+  downloading,
 }: {
   episodes: Episode[];
   currentEp: number;
   animeId: string;
-  animeTitle: string;
   onSelect: (ep: number) => void;
+  onDownload: (ep: number) => void;
+  downloading: (ep: number) => boolean;
 }) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
   const [searchTerm, setSearchTerm] = useState("");
@@ -154,14 +159,14 @@ function EpisodeList({
 
           if (displayMode === "grid") {
             return (
-              <button
-                key={ep.number}
-                ref={isSelected ? selectedRef : undefined}
-                onClick={() => onSelect(ep.number)}
-                className={`${baseClass} ${colorClass} justify-center p-1 text-xs font-medium`}
-              >
-                {isSelected ? <Play className="w-3 h-3" /> : ep.number}
-              </button>
+              <div key={ep.number} className={`${baseClass} ${colorClass} justify-between p-1 text-xs font-medium`}>
+                <button ref={isSelected ? selectedRef : undefined} onClick={() => onSelect(ep.number)} className="flex-1 py-1" aria-label={`Play episode ${ep.number}`}>
+                  {isSelected ? <Play className="w-3 h-3 mx-auto" /> : ep.number}
+                </button>
+                <button type="button" onClick={() => onDownload(ep.number)} className="p-1" aria-label={`${downloading(ep.number) ? "Cancel download of" : "Download"} episode ${ep.number}`} title={downloading(ep.number) ? "Cancel download" : "Download episode"}>
+                  {downloading(ep.number) ? <X className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                </button>
+              </div>
             );
           }
 
@@ -177,6 +182,9 @@ function EpisodeList({
                 </span>
                 <span className="text-xs truncate flex-1">{ep.title}</span>
                 {ep.filler && <span className="text-[9px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">F</span>}
+              </button>
+              <button type="button" onClick={() => onDownload(ep.number)} className="p-1 shrink-0" aria-label={`${downloading(ep.number) ? "Cancel download of" : "Download"} episode ${ep.number}`} title={downloading(ep.number) ? "Cancel download" : "Download episode"}>
+                {downloading(ep.number) ? <X className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
               </button>
             </div>
           );
@@ -251,7 +259,16 @@ export default function WatchPage() {
   const [track, setTrack] = useState<"sub" | "dub">("sub");
   const [failoverMessage, setFailoverMessage] = useState("");
   const [playerMode, setPlayerMode] = useState<"mirudl" | "original">("mirudl");
-  const [chosenTitle, setChosenTitle] = useState<{ watchId: string; title: MiruTitle } | null>(null);
+  const [chosenTitle, setChosenTitle] = useState<{ watchId: string; title: MiruTitle } | null>(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(`watch-title-${id}`) || "null");
+      return saved && typeof saved.id === "string" && typeof saved.title === "string" ? { watchId: id, title: saved } : null;
+    } catch { return null; }
+  });
+  const [quality, setQuality] = useState("auto");
+  const [titleChoice, setTitleChoice] = useState<{ provider: MiruTitle; candidates: TitleCandidate[] } | null>(null);
+  const [titleChoiceError, setTitleChoiceError] = useState("");
+  const [titleChoiceLoading, setTitleChoiceLoading] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [manualSearch, setManualSearch] = useState<{ watchId: string; query: string } | null>(null);
 
@@ -298,6 +315,28 @@ export default function WatchPage() {
   });
   const autoMatch = manualQuery ? null : exactMiruMatch(titles, miruMatches);
   const chosenMiru = chosenTitle?.watchId === id ? chosenTitle.title : autoMatch;
+  const downloads = useEpisodeDownloads(id, anime?.title.display || "Anime", titles, chosenMiru, track, quality);
+  function toggleDownload(ep: number) {
+    if (downloads.states[ep]?.busy) downloads.cancel(ep); else void downloads.start(ep);
+  }
+  function openTitle(provider: MiruTitle, anilistId: number) {
+    try { sessionStorage.setItem(`watch-title-${anilistId}`, JSON.stringify(provider)); }
+    catch { setTitleChoiceError("Could not save the title selection. Please enable session storage and try again."); return; }
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    window.location.assign(`${base}/watch/${anilistId}?ep=1`);
+  }
+  async function selectTitle(provider: MiruTitle) {
+    setTitleChoice(null); setTitleChoiceError(""); setTitleChoiceLoading(true);
+    try {
+      if (titles.some((name) => normalizeTitle(name) === normalizeTitle(provider.title))) { openTitle(provider, Number(id)); return; }
+      const candidates = await searchAnimeTitles(provider.title);
+      const matches = exactTitleCandidates(provider.title, candidates);
+      if (matches.length === 1) openTitle(provider, matches[0].id);
+      else if (candidates.length) setTitleChoice({ provider, candidates });
+      else setTitleChoiceError("No matching anime information found. Search for another title.");
+    } catch { setTitleChoiceError("Could not find anime information. Please try again."); }
+    finally { setTitleChoiceLoading(false); }
+  }
   const { data: miruEpisodes = [], isLoading: miruLoading, isError: miruError, status: miruStatus, isFetching: loadingMiruEpisodes, refetch: retryEpisodes } = useQuery({
     queryKey: ["mirudl-episodes", chosenMiru?.id],
     queryFn: ({ signal }) => withServerTimeout((requestSignal) => getMiruEpisodes(chosenMiru!.id, requestSignal), signal),
@@ -438,16 +477,19 @@ export default function WatchPage() {
                 {!matching && !matchError && !chosenMiru && (
                   <div className="bg-card border border-border rounded-xl p-3 space-y-2">
                     <p className="text-xs text-muted-foreground">Select the matching title on Server 1 to avoid playing the wrong season.</p>
-                    <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (searchInput.trim()) { setChosenTitle(null); setManualSearch({ watchId: id, query: searchInput.trim() }); } }}>
+                    <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (searchInput.trim()) { setTitleChoice(null); setTitleChoiceError(""); setChosenTitle(null); setManualSearch({ watchId: id, query: searchInput.trim() }); } }}>
                       <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search Server 1" className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground flex-1 min-w-0" />
                       <button className="bg-accent text-accent-foreground rounded px-3 py-1.5 text-xs">Search</button>
                     </form>
-                    {miruMatches.length ? <div className="flex flex-wrap gap-2">{miruMatches.slice(0, 20).map((item) => <button key={item.id} onClick={() => setChosenTitle({ watchId: id, title: item })} className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground hover:border-accent">{item.title}</button>)}</div> : <p className="text-xs text-muted-foreground">No matching titles found. Try another name or Server 2.</p>}
+                    {titleChoiceLoading && <p role="status" className="text-xs text-muted-foreground">Finding matching anime information...</p>}
+                    {titleChoiceError && <p role="alert" className="text-xs text-red-400">{titleChoiceError}</p>}
+                    {titleChoice && <div className="space-y-2"><p className="text-xs text-muted-foreground">Choose the matching anime information for {titleChoice.provider.title}:</p><div className="flex flex-wrap gap-2">{titleChoice.candidates.map((candidate) => <button key={candidate.id} type="button" onClick={() => openTitle(titleChoice.provider, candidate.id)} className="bg-muted border border-border rounded px-2 py-1.5 text-xs hover:border-accent">{candidate.titles[0]} {candidate.format} {candidate.year || ""}</button>)}</div></div>}
+                    {miruMatches.length ? <div className="flex flex-wrap gap-2">{miruMatches.slice(0, 20).map((item) => <button key={item.id} disabled={titleChoiceLoading} onClick={() => void selectTitle(item)} className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground hover:border-accent">{item.title}</button>)}</div> : <p className="text-xs text-muted-foreground">No matching titles found. Try another name or Server 2.</p>}
                   </div>
                 )}
-                {chosenMiru && <p className="text-xs text-muted-foreground">Server 1: {chosenMiru.title} <button onClick={() => { setChosenTitle(null); setManualSearch({ watchId: id, query: chosenMiru.title }); setSearchInput(chosenMiru.title); }} className="text-accent underline ml-1">Change</button></p>}
+                {chosenMiru && <p className="text-xs text-muted-foreground">Server 1: {chosenMiru.title} <button onClick={() => { try { sessionStorage.removeItem(`watch-title-${id}`); } catch { /* optional storage */ } setTitleChoice(null); setTitleChoiceError(""); setChosenTitle(null); setManualSearch({ watchId: id, query: chosenMiru.title }); setSearchInput(chosenMiru.title); }} className="text-accent underline ml-1">Change</button></p>}
                 {miruError && <p role="alert" className="text-xs text-red-400">Could not load Server 1 episodes. <button onClick={() => retryEpisodes()} className="underline">Retry</button></p>}
-                <MiruPlayer key={id} episodeId={currentMiru.length === 1 ? currentMiru[0].id : undefined} episodeNumber={currentEp} title={animeTitle} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} track={track} onTrackChange={setTrack} onFailure={failover} />
+                <MiruPlayer key={id} episodeId={currentMiru.length === 1 ? currentMiru[0].id : undefined} episodeNumber={currentEp} title={animeTitle} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} track={track} onTrackChange={setTrack} onFailure={failover} quality={quality} onQualityChange={setQuality} onDownload={() => toggleDownload(currentEp)} downloading={!!downloads.states[currentEp]?.busy} onCancelDownload={() => downloads.cancel(currentEp)} />
               </>
             ) : (
               <>
@@ -455,6 +497,12 @@ export default function WatchPage() {
                 <EpisodeDownload key={`${id}-${currentEp}`} animeId={id} malId={anime.malId} episodeNumber={currentEp} title={animeTitle} titles={titles} />
               </>
             )}
+
+            {Object.keys(downloads.states).length > 0 && <p className="text-xs text-muted-foreground">Downloads use Server 1 and may not include separate subtitles.</p>}
+            {Object.entries(downloads.states).map(([ep, state]) => <div key={ep} role="status" className="text-xs text-muted-foreground bg-card border border-border rounded-lg p-3 space-y-1">
+              <p>Episode {ep}: {state.busy ? state.progress ? `${state.progress.percent}% (${state.progress.done}/${state.progress.total} segments) · ${formatSpeed(state.progress.bytesPerSecond)}` : "Preparing download..." : state.message}</p>
+              {state.busy && <><progress className="w-full h-2 accent-accent" value={state.progress?.percent || 0} max={100} /><button type="button" className="underline" onClick={() => downloads.cancel(Number(ep))}>Cancel</button></>}
+            </div>)}
 
             {/* Anime info strip */}
             <div className="flex items-start gap-4 bg-card border border-border rounded-xl p-4">
@@ -548,8 +596,9 @@ export default function WatchPage() {
                 episodes={episodes}
                 currentEp={currentEp}
                 animeId={id}
-                animeTitle={animeTitle}
                 onSelect={navigateToEp}
+                onDownload={toggleDownload}
+                downloading={(ep) => !!downloads.states[ep]?.busy}
               />
             )}
           </div>
