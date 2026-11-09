@@ -37,3 +37,20 @@ test('a saved provider title does not fail over just because a fresh search fail
   const { server1Failure } = await import('../src/lib/server-failover.ts');
   assert.equal(server1Failure({ active: true, searchStatus: 'error', searching: false, manualSearch: false, matchCount: 0, hasChosenTitle: true, episodesStatus: 'success', loadingEpisodes: false, matchingEpisodes: 1 }), null);
 });
+
+test('only accepts signed subtitle proxy links and converts SRT to WebVTT', async () => {
+  const { subtitleFiles, toWebVtt, manifestHasSubtitleTracks } = await import('../src/lib/subtitles.ts');
+  const files = subtitleFiles([
+    { lang: 'en', label: 'English', proxyUrl: '/api/proxy/subtitle?token=abc', default: true },
+    { lang: 'fr', proxyUrl: 'https://untrusted.test/api/proxy/subtitle?token=bad' },
+    { url: 'https://untrusted.test/raw.vtt' },
+    { proxyUrl: '/api/proxy/hls?token=bad' },
+  ], 'https://app-decompiling.onrender.com');
+  assert.equal(files.length, 1);
+  assert.equal(files[0].url, 'https://app-decompiling.onrender.com/api/proxy/subtitle?token=abc');
+  assert.match(toWebVtt('1\r\n00:00:01,100 --> 00:00:02,500\r\nHello!'), /^WEBVTT\n\n1\n00:00:01\.100 --> 00:00:02\.500\nHello!/);
+  assert.match(toWebVtt('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello'), /^WEBVTT/);
+  assert.throws(() => toWebVtt('<html>not subtitles</html>'), /Unsupported/);
+  assert.equal(manifestHasSubtitleTracks('#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs"'), true);
+  assert.equal(manifestHasSubtitleTracks('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nvideo.m3u8'), false);
+});

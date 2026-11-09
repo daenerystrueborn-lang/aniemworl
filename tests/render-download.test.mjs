@@ -57,3 +57,23 @@ test('does not download a missing or unavailable episode', async (t) => {
   };
   await assert.rejects(resolveRenderStream(options()), /not available in SUB/);
 });
+
+test('returns subtitle files from the same verified playback source', async (t) => {
+  const { resolveRenderPlayback } = await import('../src/lib/render-download.ts');
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  globalThis.fetch = async (raw) => {
+    const path = new URL(raw).pathname;
+    if (path.endsWith('/search')) return json({ data: [{ id: 4, title: 'Example' }] });
+    if (path.endsWith('/anime/4')) return json({ anilist_id: 900 });
+    if (path.endsWith('/episodes/4')) return json({ data: [{ id: 20, number: 2, has_sub: true }] });
+    return json({ status: 'ready', mode: 'hls', proxyHlsUrl: '/api/proxy/hls?token=stream', subtitles: [
+      { lang: 'en', label: 'English', proxyUrl: '/api/proxy/subtitle?token=subtitle' },
+      { lang: 'ja', proxyUrl: 'https://other.example/api/proxy/subtitle?token=bad' },
+    ] });
+  };
+  const playback = await resolveRenderPlayback(options());
+  assert.equal(playback.url, 'https://app-decompiling.onrender.com/api/proxy/hls?token=stream');
+  assert.equal(playback.subtitles.length, 1);
+  assert.equal(playback.subtitles[0].url, 'https://app-decompiling.onrender.com/api/proxy/subtitle?token=subtitle');
+});

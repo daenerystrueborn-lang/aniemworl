@@ -38,3 +38,11 @@ test('rejects untrusted returned links and reports server errors', async (t) => 
   globalThis.fetch = async () => json({ error: 'No stream for this episode' }, 404);
   await assert.rejects(getMiruSession('1', 'sub', 'auto'), /No stream for this episode/);
 });
+
+test('retains valid subtitle files supplied by a playback session', async (t) => {
+  const original = globalThis.fetch; t.after(() => { globalThis.fetch = original; });
+  globalThis.fetch = async () => json({ proxyHlsUrl: '/api/proxy/hls?token=master', downloadUrl: '/api/download?token=master', subtitles: [{ lang: 'en', label: 'English', proxyUrl: '/api/proxy/subtitle?token=sub', default: true }] });
+  const result = await getMiruSession('1', 'sub', 'auto');
+  assert.equal(result.subtitles[0].lang, 'en');
+  assert.equal(result.subtitles[0].url, 'https://app-decompiling.onrender.com/api/proxy/subtitle?token=sub');
+});
