@@ -11,6 +11,7 @@ import { fetchJikanEpisodes } from "@/lib/jikan";
 import EpisodeDownload from "@/components/EpisodeDownload";
 import MiruPlayer from "@/components/MiruPlayer";
 import { exactMiruMatch, getMiruEpisodes, searchMiruTitles, type MiruTitle } from "@/lib/mirudl";
+import { server1Failure, withServerTimeout } from "@/lib/server-failover";
 
 interface WikiDetail {
   id: number;
@@ -188,80 +189,46 @@ function EpisodeList({
   );
 }
 
-// Anime sources — megaplay sub/dub + vidwish backup (proxy is movies-only)
-const QUALITY_LABELS = ["Sub", "Dub", "Backup"];
-
-function IFramePlayer({
-  anilistId,
-  episodeNumber,
-  onPrev,
-  onNext,
-  hasPrev,
-  hasNext,
-  autoNext,
-  onToggleAutoNext,
-  onEnded,
-}: {
+function IFramePlayer({ anilistId, episodeNumber, track, onTrackChange }: {
   anilistId: string;
   episodeNumber: number;
-  onPrev: () => void;
-  onNext: () => void;
-  hasPrev: boolean;
-  hasNext: boolean;
-  autoNext: boolean;
-  onToggleAutoNext: () => void;
-  onEnded: () => void;
+  track: "sub" | "dub";
+  onTrackChange: (track: "sub" | "dub") => void;
 }) {
   const [loading, setLoading] = useState(true);
-  const [sourceIdx, setSourceIdx] = useState(0);
-  const iframeKey = useRef(0);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset player when episode changes
   useEffect(() => {
     setLoading(true);
-    iframeKey.current += 1;
-  }, [episodeNumber]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function buildSrc(idx: number): string {
-    switch (idx) {
-      case 0:
-        return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`;
-      case 1:
-        return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/dub`;
-      case 2:
-        return `https://vidwish.live/stream/ani/${anilistId}/${episodeNumber}/sub`;
-      default:
-        return `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNumber}/sub`;
-    }
-  }
-
-  function switchSource(idx: number) {
-    setSourceIdx(idx);
-    setLoading(true);
-    iframeKey.current += 1;
-  }
-
-  const iframeSrc = buildSrc(sourceIdx);
+    setError(false);
+    timer.current = setTimeout(() => { setLoading(false); setError(true); }, 30_000);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+  }, [anilistId, episodeNumber, track, attempt]);
 
   return (
     <div className="space-y-2">
+      <div className="flex items-center gap-2 text-xs">
+        <label htmlFor="server2-track" className="text-muted-foreground">Language</label>
+        <select id="server2-track" value={track} onChange={(e) => onTrackChange(e.target.value as "sub" | "dub")} className="bg-card border border-border rounded-lg px-3 py-2 text-foreground">
+          <option value="sub">Sub</option><option value="dub">Dub</option>
+        </select>
+      </div>
       <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-border">
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 gap-2">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-          </div>
-        )}
+        {loading && <div className="absolute inset-0 flex items-center justify-center bg-black z-10"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>}
         <iframe
-          key={`${anilistId}-${episodeNumber}-${sourceIdx}-${iframeKey.current}`}
-          src={iframeSrc}
+          key={`${anilistId}-${episodeNumber}-${track}-${attempt}`}
+          src={`https://megaplay.buzz/stream/ani/${encodeURIComponent(anilistId)}/${episodeNumber}/${track}`}
+          title={`Server 2, episode ${episodeNumber}`}
           className="w-full h-full"
           allowFullScreen
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-          onLoad={() => setLoading(false)}
+          onLoad={() => { if (timer.current) clearTimeout(timer.current); setLoading(false); setError(false); }}
+          onError={() => { if (timer.current) clearTimeout(timer.current); setLoading(false); setError(true); }}
         />
       </div>
-
-      {/* Quality auto-switches in background — no visible controls needed */}
+      {error && <p role="alert" className="text-xs text-red-400">Server 2 did not load. <button type="button" className="underline" onClick={() => setAttempt((value) => value + 1)}>Try again</button> or choose Server 1.</p>}
     </div>
   );
 }
@@ -281,7 +248,8 @@ export default function WatchPage() {
   useEffect(() => {
     setCurrentEp(episodeFromSearch());
   }, [id, search]);
-  const [autoNext, setAutoNext] = useState(true);
+  const [track, setTrack] = useState<"sub" | "dub">("sub");
+  const [failoverMessage, setFailoverMessage] = useState("");
   const [playerMode, setPlayerMode] = useState<"mirudl" | "original">("mirudl");
   const [chosenTitle, setChosenTitle] = useState<{ watchId: string; title: MiruTitle } | null>(null);
   const [searchInput, setSearchInput] = useState("");
@@ -321,17 +289,19 @@ export default function WatchPage() {
 
   const titles = useMemo(() => [anime?.title.english, anime?.title.romaji, anime?.title.native].filter((name): name is string => Boolean(name)), [anime]);
   const manualQuery = manualSearch?.watchId === id ? manualSearch.query : "";
-  const { data: miruMatches = [], isLoading: matching, isError: matchError, refetch: retryMatches } = useQuery({
+  const { data: miruMatches = [], isLoading: matching, isError: matchError, status: matchStatus, isFetching: searching, refetch: retryMatches } = useQuery({
     queryKey: ["mirudl-search", id, manualQuery, titles.join("|")],
-    queryFn: ({ signal }) => searchMiruTitles(manualQuery ? [manualQuery] : titles, signal),
+    queryFn: ({ signal }) => withServerTimeout((requestSignal) => searchMiruTitles(manualQuery ? [manualQuery] : titles, requestSignal), signal),
+    retry: (count, error) => count < 1 && !(error instanceof Error && error.message.includes("took too long")),
     enabled: !!anime && playerMode === "mirudl" && titles.length > 0,
     staleTime: 10 * 60 * 1000,
   });
   const autoMatch = manualQuery ? null : exactMiruMatch(titles, miruMatches);
   const chosenMiru = chosenTitle?.watchId === id ? chosenTitle.title : autoMatch;
-  const { data: miruEpisodes = [], isLoading: miruLoading, isError: miruError, refetch: retryEpisodes } = useQuery({
+  const { data: miruEpisodes = [], isLoading: miruLoading, isError: miruError, status: miruStatus, isFetching: loadingMiruEpisodes, refetch: retryEpisodes } = useQuery({
     queryKey: ["mirudl-episodes", chosenMiru?.id],
-    queryFn: ({ signal }) => getMiruEpisodes(chosenMiru!.id, signal),
+    queryFn: ({ signal }) => withServerTimeout((requestSignal) => getMiruEpisodes(chosenMiru!.id, requestSignal), signal),
+    retry: (count, error) => count < 1 && !(error instanceof Error && error.message.includes("took too long")),
     enabled: playerMode === "mirudl" && !!chosenMiru,
     staleTime: 10 * 60 * 1000,
   });
@@ -353,6 +323,26 @@ export default function WatchPage() {
     ? miruEpisodes.map((ep) => ({ ...ep, thumbnail: null, recap: false }))
     : originalEpisodes;
   const currentMiru = miruEpisodes.filter((ep) => ep.number === currentEp);
+
+  const failover = useCallback((message: string) => {
+    if (playerMode !== "mirudl") return;
+    setFailoverMessage(`${message} Switched to Server 2.`);
+    setPlayerMode("original");
+  }, [playerMode]);
+
+  const lookupFailure = server1Failure({
+    active: playerMode === "mirudl" && !!anime,
+    searchStatus: matchStatus,
+    searching,
+    manualSearch: !!manualQuery,
+    matchCount: miruMatches.length,
+    hasChosenTitle: !!chosenMiru,
+    episodesStatus: miruStatus,
+    loadingEpisodes: loadingMiruEpisodes,
+    matchingEpisodes: currentMiru.length,
+  });
+  useEffect(() => { if (lookupFailure) failover(lookupFailure); }, [lookupFailure, failover]);
+  useEffect(() => { setFailoverMessage(""); }, [id]);
 
   const currentIndex = useMemo(
     () => episodes.findIndex((e) => e.number === currentEp),
@@ -427,7 +417,7 @@ export default function WatchPage() {
           </Link>
           <ChevronRight className="w-3.5 h-3.5" />
           <span className="text-foreground">
-            {episodesLoading ? "Loading…" : currentEpisode ? `Episode ${currentEp}` : `Episode ${currentEp}`}
+            {(playerMode === "mirudl" ? matching || (!!chosenMiru && miruLoading) : episodesLoading) ? "Loading…" : `Episode ${currentEp}`}
           </span>
         </div>
 
@@ -435,32 +425,33 @@ export default function WatchPage() {
           {/* Left: Player + info */}
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <label htmlFor="watch-source" className="text-muted-foreground">Player</label>
-              <select id="watch-source" value={playerMode} onChange={(e) => setPlayerMode(e.target.value as "mirudl" | "original")} className="bg-card border border-border rounded-lg px-3 py-2 text-foreground">
-                <option value="mirudl">MiruDL</option><option value="original">Original player</option>
+              <label htmlFor="watch-source" className="text-muted-foreground">Server</label>
+              <select id="watch-source" value={playerMode} onChange={(e) => { setFailoverMessage(""); setPlayerMode(e.target.value as "mirudl" | "original"); }} className="bg-card border border-border rounded-lg px-3 py-2 text-foreground">
+                <option value="mirudl">Server 1</option><option value="original">Server 2</option>
               </select>
             </div>
+            {failoverMessage && <p role="status" className="text-xs text-muted-foreground">{failoverMessage}</p>}
             {playerMode === "mirudl" ? (
               <>
-                {matching && <p className="text-xs text-muted-foreground">Finding this anime on MiruDL...</p>}
-                {matchError && <p role="alert" className="text-xs text-red-400">Could not search MiruDL. <button onClick={() => retryMatches()} className="underline">Retry</button></p>}
+                {matching && <p className="text-xs text-muted-foreground">Finding this anime on Server 1...</p>}
+                {matchError && <p role="alert" className="text-xs text-red-400">Could not search Server 1. <button onClick={() => retryMatches()} className="underline">Retry</button></p>}
                 {!matching && !matchError && !chosenMiru && (
                   <div className="bg-card border border-border rounded-xl p-3 space-y-2">
-                    <p className="text-xs text-muted-foreground">Select the matching title on MiruDL to avoid playing the wrong season.</p>
+                    <p className="text-xs text-muted-foreground">Select the matching title on Server 1 to avoid playing the wrong season.</p>
                     <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (searchInput.trim()) { setChosenTitle(null); setManualSearch({ watchId: id, query: searchInput.trim() }); } }}>
-                      <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search MiruDL" className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground flex-1 min-w-0" />
+                      <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search Server 1" className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground flex-1 min-w-0" />
                       <button className="bg-accent text-accent-foreground rounded px-3 py-1.5 text-xs">Search</button>
                     </form>
-                    {miruMatches.length ? <div className="flex flex-wrap gap-2">{miruMatches.slice(0, 20).map((item) => <button key={item.id} onClick={() => setChosenTitle({ watchId: id, title: item })} className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground hover:border-accent">{item.title}</button>)}</div> : <p className="text-xs text-muted-foreground">No matching titles found. Try another name or the original player.</p>}
+                    {miruMatches.length ? <div className="flex flex-wrap gap-2">{miruMatches.slice(0, 20).map((item) => <button key={item.id} onClick={() => setChosenTitle({ watchId: id, title: item })} className="bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground hover:border-accent">{item.title}</button>)}</div> : <p className="text-xs text-muted-foreground">No matching titles found. Try another name or Server 2.</p>}
                   </div>
                 )}
-                {chosenMiru && <p className="text-xs text-muted-foreground">MiruDL: {chosenMiru.title} <button onClick={() => { setChosenTitle(null); setManualSearch({ watchId: id, query: chosenMiru.title }); setSearchInput(chosenMiru.title); }} className="text-accent underline ml-1">Change</button></p>}
-                {miruError && <p role="alert" className="text-xs text-red-400">Could not load MiruDL episodes. <button onClick={() => retryEpisodes()} className="underline">Retry</button></p>}
-                <MiruPlayer key={id} episodeId={currentMiru.length === 1 ? currentMiru[0].id : undefined} episodeNumber={currentEp} title={animeTitle} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} />
+                {chosenMiru && <p className="text-xs text-muted-foreground">Server 1: {chosenMiru.title} <button onClick={() => { setChosenTitle(null); setManualSearch({ watchId: id, query: chosenMiru.title }); setSearchInput(chosenMiru.title); }} className="text-accent underline ml-1">Change</button></p>}
+                {miruError && <p role="alert" className="text-xs text-red-400">Could not load Server 1 episodes. <button onClick={() => retryEpisodes()} className="underline">Retry</button></p>}
+                <MiruPlayer key={id} episodeId={currentMiru.length === 1 ? currentMiru[0].id : undefined} episodeNumber={currentEp} title={animeTitle} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} track={track} onTrackChange={setTrack} onFailure={failover} />
               </>
             ) : (
               <>
-                <IFramePlayer anilistId={id} episodeNumber={currentEp} onPrev={handlePrev} onNext={handleNext} hasPrev={hasPrev} hasNext={hasNext} autoNext={autoNext} onToggleAutoNext={() => setAutoNext((v) => !v)} onEnded={handleNext} />
+                <IFramePlayer anilistId={id} episodeNumber={currentEp} track={track} onTrackChange={setTrack} />
                 <EpisodeDownload key={`${id}-${currentEp}`} animeId={id} malId={anime.malId} episodeNumber={currentEp} title={animeTitle} titles={titles} />
               </>
             )}
@@ -548,7 +539,7 @@ export default function WatchPage() {
                 <div className="text-center px-4">
                   <AlertCircle className="w-7 h-7 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">No episode list available.</p>
-                  <p className="text-xs text-muted-foreground mt-1">{playerMode === "mirudl" ? "Choose a matching MiruDL title or switch to the original player." : "Use the player controls to navigate."}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{playerMode === "mirudl" ? "Choose a matching title or switch to Server 2." : "Use the player controls to navigate."}</p>
                 </div>
               </div>
             ) : (
