@@ -12,7 +12,6 @@ export default function MiruPlayer({ episodeId, episodeNumber, title, onPrev, on
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const resumeAt = useRef(0);
-  const subtitleLookup = useRef<AbortController | null>(null);
   const skipAutoSubtitleLookup = useRef(false);
   const failureRef = useRef(onFailure);
   failureRef.current = onFailure;
@@ -21,34 +20,14 @@ export default function MiruPlayer({ episodeId, episodeNumber, title, onPrev, on
   const [error, setError] = useState("");
   const [autoNext, setAutoNext] = useState(true);
   const [alternate, setAlternate] = useState<{ animeId: string; episodeNumber: number; url: string; subtitles: SubtitleFile[] } | null>(null);
-  const [searchingSubtitles, setSearchingSubtitles] = useState(false);
   const [subtitleMessage, setSubtitleMessage] = useState("");
   const [fileMessage, setFileMessage] = useState("");
   const activeAlternate = track === "sub" && alternate?.animeId === animeId && alternate.episodeNumber === episodeNumber ? alternate : null;
   useEffect(() => {
     skipAutoSubtitleLookup.current = false;
-    setAlternate(null); setSubtitleMessage(""); setSearchingSubtitles(false);
-    return () => { subtitleLookup.current?.abort(); subtitleLookup.current = null; };
+    setAlternate(null); setSubtitleMessage("");
   }, [animeId, episodeNumber, track]);
 
-  async function findSubtitleSource() {
-    subtitleLookup.current?.abort();
-    const request = new AbortController(); subtitleLookup.current = request;
-    setSearchingSubtitles(true); setSubtitleMessage("");
-    try {
-      const result = await resolveRenderPlayback({ animeId, malId, titles, episodeNumber, track: "sub", signal: request.signal });
-      if (!result.subtitles.length) throw new Error("No separate subtitle files were provided by the alternate source.");
-      if (!request.signal.aborted) {
-        resumeAt.current = 0;
-        setAlternate({ animeId, episodeNumber, ...result });
-        setSubtitleMessage("Using an alternate stream for its subtitles. Playback starts from the beginning.");
-      }
-    } catch {
-      if (!request.signal.aborted) setSubtitleMessage("Could not find a matching stream with subtitle files. Try Server 2 or another episode.");
-    } finally {
-      if (subtitleLookup.current === request) { subtitleLookup.current = null; setSearchingSubtitles(false); }
-    }
-  }
   useEffect(() => { resumeAt.current = 0; }, [episodeId]);
 
   useEffect(() => {
@@ -116,7 +95,7 @@ export default function MiruPlayer({ episodeId, episodeNumber, title, onPrev, on
         }
       } catch { /* Keep the original stream when no verified alternate is available. */ }
       finally { if (timer) clearTimeout(timer); controller.signal.removeEventListener("abort", abortLookup); lookup.abort(); }
-      if (!controller.signal.aborted) setSubtitleMessage("No selectable subtitle track was found. The video may have subtitles burned in. Try the subtitle source or Server 2 if needed.");
+      if (!controller.signal.aborted) setSubtitleMessage("No selectable subtitle track was found. The video may have subtitles burned in. Try Server 2 if needed.");
       return original;
     };
     getSession().then(async (result) => {
@@ -209,7 +188,7 @@ export default function MiruPlayer({ episodeId, episodeNumber, title, onPrev, on
         {!episodeId && <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground px-4 text-center">Select a matching title and episode to play.</div>}
       </div>
       {track === "sub" && <div className="flex flex-wrap items-center gap-2 text-xs">
-        {activeAlternate ? <button type="button" className="rounded-lg border border-border px-3 py-2" onClick={() => { skipAutoSubtitleLookup.current = true; setAlternate(null); setSubtitleMessage("Returned to the original stream."); resumeAt.current = 0; }}>Original stream</button> : <button type="button" disabled={searchingSubtitles || loading || !episodeId} className="rounded-lg border border-border px-3 py-2 disabled:opacity-40" onClick={() => void findSubtitleSource()}>{searchingSubtitles ? "Finding subtitles..." : "Try subtitle source"}</button>}
+        {activeAlternate && <button type="button" className="rounded-lg border border-border px-3 py-2" onClick={() => { skipAutoSubtitleLookup.current = true; setAlternate(null); setSubtitleMessage("Returned to the original stream."); resumeAt.current = 0; }}>Original stream</button>}
         <span className="text-muted-foreground">Subtitle availability depends on the source.</span>
       </div>}
       {track === "sub" && (subtitleMessage || fileMessage) && <p role="status" className="text-xs text-muted-foreground">{fileMessage || subtitleMessage}</p>}
