@@ -419,7 +419,7 @@ export default function WatchPage() {
               onEnded={handleNext}
             />
 
-            <EpisodeDownload key={`${id}-${currentEp}`} animeId={id} episodeNumber={currentEp} title={animeTitle} />
+            <EpisodeDownload key={`${id}-${currentEp}`} animeId={id} malId={anime.malId} episodeNumber={currentEp} title={animeTitle} titles={[anime.title.english, anime.title.romaji, anime.title.native].filter((title): title is string => Boolean(title))} />
 
             {/* Anime info strip */}
             <div className="flex items-start gap-4 bg-card border border-border rounded-xl p-4">
