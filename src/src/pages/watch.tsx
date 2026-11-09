@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { fetchAnimeDetails } from "@/lib/anilist";
-import DownloadButton from "@/components/DownloadButton";
+import DownloadButton from "../components/DownloadButton";
 import { fetchJikanEpisodes } from "@/lib/jikan";
 import { resolveStreamUrl } from "@/lib/stream-resolver";
 
